@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
-namespace ThirdPartyLibTest.NpoiTest
+namespace ThirdPartyLibTest.NPOI
 {
     /// <summary>
     /// 作者:jomz

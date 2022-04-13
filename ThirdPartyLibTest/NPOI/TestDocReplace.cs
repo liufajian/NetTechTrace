@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ThirdPartyLibTest.NpoiTest
+namespace ThirdPartyLibTest.NPOI
 {
     [TestClass]
     public class TestDocReplace

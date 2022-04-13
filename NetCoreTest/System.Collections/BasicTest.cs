@@ -68,5 +68,40 @@ namespace NetCoreTest.System.Collections
             Assert.IsFalse(enm2.MoveNext());
             Assert.IsFalse(enm2.MoveNext());
         }
+
+        [TestMethod]
+        public void TestStack()
+        {
+            var stack = new Stack<int>();
+
+            for(var i = 1; i <= 3; i++)
+            {
+                stack.Push(i);
+            }
+
+            var pop = stack.Pop();
+            Assert.AreEqual(pop, 3);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 2);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 1);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 1);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 2);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 3);
+            stack.Push(pop);
+        }
     }
 }
