@@ -1,5 +1,6 @@
 ﻿using NPOI.XWPF.UserModel;
 using OfficeLib;
+using OfficeLib.Json;
 
 namespace ThirdPartyLibTest.OfficeLib
 {
@@ -131,6 +132,30 @@ namespace ThirdPartyLibTest.OfficeLib
             }
 
             return tempFilePath;
+        }
+
+        [TestMethod("测试坏的文档模板")]
+        public void TestTemplate1()
+        {
+            string templatePath = Path.Combine(AppContext.BaseDirectory, "Resources\\OfficeLib\\test1.docx");
+
+            var targetPath = Path.Combine("d:\\", "test1.docx");
+
+            var converter = new NpoiDocTemplateConverter();
+
+            converter.AddVariable("BeginIf1", true);
+            var jn = new JsonObject
+            {
+                { "A1", "测试A1" },
+                { "A2", "测试A2" },
+                { "B1", "测试BB1" },
+                { "B2", "测试BB2" },
+                { "T11", "测试T11" },
+            };
+
+            converter.AddVariable("Test", jn);
+
+            converter.Convert(templatePath, targetPath);
         }
     }
 }

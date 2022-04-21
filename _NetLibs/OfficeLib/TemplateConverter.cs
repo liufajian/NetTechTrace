@@ -1,39 +1,42 @@
-﻿using System;
+﻿using OfficeLib.Json;
+using System;
 using System.Collections.Generic;
-using System.Text.Json.Nodes;
 
 namespace OfficeLib
 {
     public abstract class TemplateConverter
     {
-        readonly Dictionary<string, JsonNode> _dicVar;
+        readonly Dictionary<string, JsonValue> _dicVar;
 
         public TemplateConverter()
         {
-            _dicVar = new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
+            _dicVar = new Dictionary<string, JsonValue>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// 添加替换变量
         /// </summary>
-        public void AddVariable(string key, JsonNode value)
+        public void AddVariable(string varKey, JsonValue value)
         {
-            if (key is null)
+            if (varKey is null)
             {
-                throw new ArgumentNullException(nameof(key));
+                throw new ArgumentNullException(nameof(varKey));
             }
 
-            _dicVar[TrimKey(key)] = value;
+            _dicVar[TrimKey(varKey)] = value;
         }
 
-        protected virtual JsonNode GetJsonNode(string key)
+        /// <summary>
+        /// 
+        /// </summary>
+        protected JsonValue GetVarValue(string varKey)
         {
-            return key is null ? null : _dicVar.TryGetValue(key, out var node) ? node : null;
+            return varKey is null ? null : _dicVar.TryGetValue(varKey, out var node) ? node : null;
         }
 
-        private static string TrimKey(string key)
+        private static string TrimKey(string varKey)
         {
-            return key.AsSpan().Trim().TrimStart('{').TrimEnd('}').Trim().ToString();
+            return varKey.AsSpan().Trim().TrimStart('{').TrimEnd('}').Trim().ToString();
         }
     }
 }

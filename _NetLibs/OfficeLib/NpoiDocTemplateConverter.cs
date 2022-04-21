@@ -1,9 +1,8 @@
 ﻿using NPOI.XWPF.UserModel;
+using OfficeLib.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace OfficeLib
@@ -11,10 +10,8 @@ namespace OfficeLib
     /// <summary>
     /// 
     /// </summary>
-    public class NpoiDocTemplateConverter : TemplateConverter
+    public partial class NpoiDocTemplateConverter : TemplateConverter
     {
-        readonly JsonNode _loopValue;
-
         public NpoiDocTemplateConverter()
         {
 
@@ -51,104 +48,258 @@ namespace OfficeLib
             }
 
             var doc = new XWPFDocument(templateStream);
-            var root = TemplateNode.CreateRootSection();
+            var root = NpDocTemplateNode.CreateRootSection();
 
             ParseDocument(doc, root);
 
+            var bodyIndexIncrement = 0;
+
             foreach (var section in root.Children)
             {
-                if (section.SectionType == MySectionType.mif)
+                if (section.SectionType == MySectionType.table)
                 {
-                    HandleIf(doc, section);
+                    var table = (XWPFTable)doc.BodyElements[section.NodeData.BodyIndex + bodyIndexIncrement];
+
+                    HandleTable(table, section);
                 }
+                else if (section.SectionType == MySectionType.mif)
+                {
+                    HandleBodyIf(doc, section, ref bodyIndexIncrement);
+                }
+            }
+
+            using (var stream = File.OpenWrite(outputFilePath))
+            {
+                doc.Write(stream);
             }
         }
 
         #region----Convert Methods----
 
-        private void HandleIf(XWPFDocument doc, TemplateNode sectionIf)
+        private void HandleBodyIf(XWPFDocument doc, NpDocTemplateNode mifSection, ref int bodyIndexIncrement)
         {
-            var value = GetJsonNode(sectionIf.NodeKey);
+            var value = GetPathValue(mifSection.NodeKey);
 
-            var arr = JsonNodeHelper.GetLoopArray(value);
+            var arr = JsonHelper.GetLoopArray(value);
+
+            var beginIndex = mifSection.NodeData.BodyIndex;
+            var endIndex = mifSection.EndNode.NodeData.BodyIndex;
 
             if (arr == null)
             {
+                var removeIndex = beginIndex + bodyIndexIncrement;
+
+                for (var i = beginIndex; i <= endIndex; i++)
+                {
+                    doc.RemoveBodyElement(removeIndex);
+                }
+
+                bodyIndexIncrement -= endIndex - beginIndex;
+            }
+            else
+            {
+                var beginPara = mifSection.NodeData.Paragraph;
+                beginPara.ReplaceText(mifSection.NodeText, string.Empty);
+
+                var endPara = mifSection.EndNode.NodeData.Paragraph;
+                endPara.ReplaceText(mifSection.EndNode.NodeText, string.Empty);
+
+                if (mifSection.HasChild)
+                {
+                    foreach (var item in mifSection.Children)
+                    {
+                        if (item.NodeData.Paragraph != null)
+                        {
+                            var jval = GetPathValue(item.NodeKey);
+                            item.NodeData.Paragraph.ReplaceText(item.NodeText, jval?.ToString());
+                        }
+                        else //处理表格
+                        {
+                            var table = (XWPFTable)doc.BodyElements[item.NodeData.BodyIndex + bodyIndexIncrement];
+
+                            HandleTable(table, item);
+                        }
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(beginPara.Text))
+                {
+                    doc.RemoveBodyElement(mifSection.NodeData.BodyIndex + bodyIndexIncrement);
+                    bodyIndexIncrement--;
+                }
+
+                if (string.IsNullOrWhiteSpace(endPara.Text))
+                {
+                    doc.RemoveBodyElement(mifSection.EndNode.NodeData.BodyIndex + bodyIndexIncrement);
+                    bodyIndexIncrement--;
+                }
             }
         }
 
-        private void HandleTableLoop(XWPFTable table, TemplateNode sectionLoop, ref int rowIncrement)
+        private void HandleTable(XWPFTable table, NpDocTemplateNode tableSection)
         {
-            //System.Diagnostics.Debug.Assert(sectionLoop.NodeType == MyNodeType.loop);
+            if (!tableSection.HasChild)
+            {
+                return;
+            }
 
-            //var loopArray = GetLoopArray(sectionLoop.NodeKey);
+            var rowIncrement = 0;
 
-            //var closeNode = sectionLoop.LastChild();
+            NpDocTemplateNode loopSection = null;
 
-            //if (RemoveTableSection(table, sectionLoop, ref rowIncrement))
-            //{
+            foreach (var child in tableSection.Children)
+            {
+                if (loopSection != null)
+                {
+                    if (loopSection.EndNode.NodeData.RowIndex != child.NodeData.RowIndex)
+                    {
+                        HandleTableLoop(table, loopSection, ref rowIncrement);
 
-            //}
+                        loopSection = null;
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.Assert(child.SectionType != MySectionType.loop);
+                    }
+                }
 
-            //if (sectionLoop.TableInfo.Cell == closeNode.TableInfo.Cell)
-            //{
-            //    var curNode = openNode;
+                if (child.SectionType == MySectionType.loop)
+                {
+                    loopSection = child; //碰到循环后,先将循环结束标识后位于同一行的单元格处理掉
+                }
+                else
+                {
+                    var jval = GetPathValue(child.NodeKey);
 
-            //    foreach (var loopValue in loopArray)
-            //    {
-            //        _sectionManager.CurrentValue = loopValue;
+                    child.NodeData.Paragraph.ReplaceText(child.NodeText, jval?.ToString());
+                }
+            }
 
-            //        while (curNode != null)
-            //        {
-            //            if (curNode.Paragraph != null)
-            //            {
-            //                var newp = openNode.TableCell.AddParagraph();
-
-            //                CopyParagraph(curNode.Paragraph, newp);
-
-            //                var str = GetString(curNode.NodeKey);
-
-            //                newp.ReplaceText(curNode.NodeText, str);
-            //            }
-            //            curNode = curNode.Next;
-            //        }
-            //    }
-            //}
-            //else
-            //{
-            //    var firstIndex = openNode.RowIndex + rowIncrement;
-
-            //    var curNode = openNode;
-
-            //    while (curNode != null)
-            //    {
-            //        curNode = curNode.Next;
-            //    }
-
-            //    foreach (var loopValue in loopArray)
-            //    {
-            //        _sectionManager.CurrentValue = loopValue;
-
-
-            //        //XWPFTableRow copiedRow1 = new XWPFTableRow(row.GetCTRow().Copy(), table);
-            //        //copiedRow1.GetCell(4).SetText("biubiub");
-            //        //table.AddRow(copiedRow1, 1);
-            //    }
-            //}
+            if (loopSection != null)
+            {
+                HandleTableLoop(table, loopSection, ref rowIncrement);
+            }
         }
 
-        private bool RemoveTableSection(XWPFTable table, TemplateNode node, ref int rowIncrement)
+        private void HandleTableLoop(XWPFTable table, NpDocTemplateNode loopSection, ref int rowIncrement)
         {
-            //node.Paragraph.ReplaceText(node.NodeText, string.Empty);
+            var beginData = loopSection.NodeData;
+            var endData = loopSection.EndNode.NodeData;
 
-            //if (node.TableInfo.Row.GetTableCells().All(n => string.IsNullOrWhiteSpace(n.GetText())))
-            //{
-            //    table.RemoveRow(node.TableInfo.RowIndex + rowIncrement);
-            //    rowIncrement--;
-            //    return true;
-            //}
+            var beginRowIndex = beginData.RowIndex;
+            var endRowIndex = endData.RowIndex;
 
-            return false;
+            var beginPara = beginData.Paragraph;
+            beginPara.ReplaceText(loopSection.NodeText, string.Empty);
+
+            var endPara = endData.Paragraph;
+            endPara.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
+
+            var jval = GetPathValue(loopSection.NodeKey);
+            var loopArray = JsonHelper.GetLoopArray(jval);
+
+            if (loopArray == null)
+            {
+                beginRowIndex += rowIncrement;
+                endRowIndex += rowIncrement;
+
+                //清理区块起始标识所在的单元格
+                var beginRow = table.GetRow(beginRowIndex);
+                var beginCell = beginRow.GetCell(beginData.CellIndex);
+                while (beginCell.Paragraphs.Count > beginData.BodyIndex)
+                {
+                    beginCell.RemoveParagraph(beginData.BodyIndex);
+                }
+                beginCell.SetText(string.Empty);
+
+                //清理区块结束标识所在的单元格
+                var endRow = table.GetRow(endRowIndex);
+                var endCell = endRow.GetCell(endData.CellIndex);
+                for (var i = 0; i <= endData.BodyIndex; i++)
+                {
+                    endCell.RemoveParagraph(0);
+                }
+                endCell.SetText(string.Empty);
+
+                //删除首行判断
+                var cells = beginRow.GetTableCells();
+                if (!isRangeEmpty(cells, 0, beginData.CellIndex))
+                {
+                    //如果首行不为空则设置循环开始标识后的单元格为空值
+                    var endCellIndex = beginRowIndex == endRowIndex ? endData.CellIndex : cells.Count;
+                    clearRange(cells, beginData.CellIndex + 1, endCellIndex - 1);
+                    beginRowIndex += 1;
+                }
+
+                //删除尾行判断
+                cells = endRow.GetTableCells();
+                if (!isRangeEmpty(cells, endData.CellIndex, cells.Count - 1))
+                {
+                    //如果尾行不为空则设置循环结束标识前的单元格为空值
+                    if (beginRowIndex <= endRowIndex)
+                    {
+                        var beginCellIndex = beginRowIndex == endRowIndex ? beginData.CellIndex : 0;
+                        clearRange(cells, beginCellIndex + 1, endData.CellIndex - 1);
+                    }
+                    endRowIndex -= 1;
+                }
+
+                //执行删除
+                for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
+                {
+                    table.RemoveRow(beginRowIndex);
+
+                    rowIncrement--;
+                }
+            }
+            else
+            {
+                foreach (var loopValue in loopArray)
+                {
+                    var rowIncrement2 = rowIncrement;
+
+                    for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
+                    {
+                        var row = table.Rows[rowIncrement + rIndex];
+                        var copiedRow = new XWPFTableRow(row.GetCTRow().Copy(), table);
+                        table.AddRow(copiedRow, rowIncrement2 + rIndex);
+                        rowIncrement++;
+                    }
+
+                    foreach (var child in loopSection.Children)
+                    {
+                        var row = table.Rows[child.NodeData.RowIndex + rowIncrement2];
+                        var cell = row.GetCell(child.NodeData.CellIndex);
+                        var para = cell.Paragraphs[child.NodeData.BodyIndex];
+                        var jstr = GetPathValue(child.NodeKey, loopValue)?.ToString();
+                        para.ReplaceText(child.NodeText, jstr ?? string.Empty);
+                    }
+                }
+            }
+
+            bool isRangeEmpty(List<XWPFTableCell> cells, int beginCellIndex, int endCellIndex)
+            {
+                for (var i = beginCellIndex; i <= endCellIndex; i++)
+                {
+                    if (!string.IsNullOrWhiteSpace(cells[i].GetText()))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            void clearRange(List<XWPFTableCell> cells, int beginCellIndex, int endCellIndex)
+            {
+                for (var i = beginCellIndex; i <= endCellIndex; i++)
+                {
+                    while (cells[i].Paragraphs.Count > 0)
+                    {
+                        cells[i].RemoveParagraph(0);
+                    }
+                    cells[i].SetText(string.Empty);
+                }
+            }
         }
 
         private void CopyParagraph(XWPFParagraph sourcePara, XWPFParagraph targetPara)
@@ -162,9 +313,9 @@ namespace OfficeLib
             targetP.rsidRDefault = sourceP.rsidRDefault;
             targetP.rsidP = sourceP.rsidP;
 
-            for (int r = 0; r < sourcePara.Runs.Count; r++)
+            for (var r = 0; r < sourcePara.Runs.Count; r++)
             {
-                XWPFRun copyRun = sourcePara.Runs[r];
+                var copyRun = sourcePara.Runs[r];
 
                 var copyRunP = copyRun.GetCTR();
 
@@ -178,7 +329,10 @@ namespace OfficeLib
             }
         }
 
-        protected override JsonNode GetJsonNode(string pathKey)
+        /// <summary>
+        /// 根据变量路径获取值
+        /// </summary>
+        private JsonValue GetPathValue(string pathKey, JsonValue loopValue = null)
         {
             if (pathKey is null)
             {
@@ -187,31 +341,31 @@ namespace OfficeLib
 
             if (pathKey == ".")
             {
-                return _loopValue;
+                return loopValue;
             }
 
             var index = pathKey.IndexOf('.');
 
             if (index < 0)
             {
-                return _loopValue is JsonObject jobj1 && jobj1.TryGetPropertyValue(pathKey, out var jn1) ? jn1 : base.GetJsonNode(pathKey);
+                return loopValue is JsonObject jobj1 && jobj1.TryGetValue(pathKey, out var jn1) ? jn1 : base.GetVarValue(pathKey);
             }
 
             if (index == 0)
             {
-                return JsonNodeHelper.GetValue(_loopValue, pathKey.AsSpan().Slice(1).TrimStart());
+                return JsonHelper.GetPropertyValue(loopValue, pathKey.AsSpan().Slice(1).TrimStart());
             }
 
             var key1 = pathKey[..index];
-            var jnode = _loopValue is JsonObject jobj2 && jobj2.TryGetPropertyValue(key1, out var jn2) ? jn2 : base.GetJsonNode(key1);
-            return JsonNodeHelper.GetValue(jnode, pathKey.AsSpan()[(index + 1)..]);
+            var jval = loopValue is JsonObject jobj2 && jobj2.TryGetValue(key1, out var jn2) ? jn2 : base.GetVarValue(key1);
+            return JsonHelper.GetPropertyValue(jval, pathKey.AsSpan()[(index + 1)..]);
         }
 
         #endregion
 
         #region----Parse Methods----
 
-        private void ParseDocument(XWPFDocument doc, TemplateNode rootSection)
+        private void ParseDocument(XWPFDocument doc, NpDocTemplateNode rootSection)
         {
             var curSection = rootSection;
 
@@ -237,7 +391,7 @@ namespace OfficeLib
         /// <summary>
         /// 
         /// </summary>
-        private void ParseParagraph(ref TemplateNode curSection, NpData data)
+        private void ParseParagraph(ref NpDocTemplateNode curSection, NpData data)
         {
             var matches = Regex.Matches(data.Paragraph.Text, @"\{\{(.+?)}}");
 
@@ -254,13 +408,13 @@ namespace OfficeLib
                 {
                     nodeKey = nodeKey.Substring(4).TrimStart();
 
-                    curSection = curSection.OpenSection(MySectionType.mif, nodeKey, nodeText: m.Value, data: data);
+                    curSection = curSection.BeginSection(MySectionType.mif, nodeKey, nodeText: m.Value, data: data);
                 }
                 else if (nodeKey.StartsWith("/if "))
                 {
                     nodeKey = nodeKey.Substring(4).TrimStart();
 
-                    curSection.CloseSection(MySectionType.mif, nodeKey, nodeText: m.Value, data: data);
+                    curSection.EndSection(MySectionType.mif, nodeKey, nodeText: m.Value, data: data);
 
                     curSection = curSection.Parent;
                 }
@@ -268,41 +422,40 @@ namespace OfficeLib
                 {
                     nodeKey = nodeKey.Substring(6).TrimStart();
 
-                    curSection = curSection.OpenSection(MySectionType.loop, nodeKey, nodeText: m.Value, data: data);
+                    curSection = curSection.BeginSection(MySectionType.loop, nodeKey, nodeText: m.Value, data: data);
                 }
                 else if (nodeKey.StartsWith("/loop "))
                 {
                     nodeKey = nodeKey.Substring(6).TrimStart();
 
-                    curSection.CloseSection(MySectionType.loop, nodeKey, nodeText: m.Value, data: data);
+                    curSection.EndSection(MySectionType.loop, nodeKey, nodeText: m.Value, data: data);
 
                     curSection = curSection.Parent;
                 }
                 else if (curSection.SectionType != MySectionType.none)
                 {
-                    curSection.AppendChild(nodeKey, nodeText: m.Value, data: data);
+                    curSection.AppendChildNode(nodeKey, nodeText: m.Value, data: data);
                 }
                 else
                 {
                     //直接做了替换
 
-                    var replacement = JsonNodeHelper.GetString(GetJsonNode(nodeKey));
+                    var jval = GetPathValue(nodeKey);
 
-                    data.Paragraph.ReplaceText(m.Value, replacement);
+                    data.Paragraph.ReplaceText(m.Value, jval?.ToString());
                 }
             }
         }
 
         //不支持嵌套表格
-        private void ParseTable(TemplateNode curSection, XWPFTable table, int bodyIndex)
+        private void ParseTable(NpDocTemplateNode curSection, XWPFTable table, int bodyIndex)
         {
             var data = new NpData
             {
-                BodyIndex = bodyIndex,
-                Table = new NpTableWrap(table)
+                BodyIndex = bodyIndex
             };
 
-            var tableSection = curSection.OpenSection(MySectionType.table, nodeKey: null, nodeText: null, data: data);
+            var tableSection = curSection.BeginSection(MySectionType.table, nodeKey: null, nodeText: null, data: data);
 
             curSection = tableSection;
 
@@ -310,22 +463,17 @@ namespace OfficeLib
             {
                 var cells = table.Rows[rIndex].GetTableCells();
 
-                foreach (var cell in cells)
+                for (var cIndex = 0; cIndex < cells.Count; cIndex++)
                 {
-                    var paras = cell.Paragraphs.ToArray();
+                    var paras = cells[cIndex].Paragraphs;
 
-                    for (var pIndex = 0; pIndex < cell.Paragraphs.Count; pIndex++)
+                    for (var pIndex = 0; pIndex < paras.Count; pIndex++)
                     {
                         data = new NpData
                         {
                             BodyIndex = pIndex,
-                            Paragraph = cell.Paragraphs[pIndex],
-                            Table = new NpTableWrap(table)
-                            {
-                                Cell = cell,
-                                RowIndex = rIndex,
-                                Row = table.Rows[rIndex]
-                            }
+                            Paragraph = paras[pIndex],
+                            TableCellPos = new[] { rIndex, cIndex }
                         };
                         ParseParagraph(ref curSection, data);
                     }
@@ -336,277 +484,6 @@ namespace OfficeLib
             if (curSection != tableSection)
             {
                 throw new TemplateConvertException("表格中的区块未关闭:" + curSection.NodeText);
-            }
-        }
-
-        #endregion
-
-        #region----Inner Class----
-
-        class NpTableWrap
-        {
-            public NpTableWrap(XWPFTable table)
-            {
-                Table = table ?? throw new ArgumentNullException(nameof(table));
-            }
-
-            public XWPFTable Table { get; }
-
-            public XWPFTableRow Row { get; set; }
-
-            public int RowIndex { get; set; }
-
-            public XWPFTableCell Cell { get; set; }
-        }
-
-        class NpData
-        {
-            public int BodyIndex { get; set; }
-
-            public XWPFParagraph Paragraph { get; set; }
-
-            public NpTableWrap Table { get; set; }
-        }
-
-        enum MySectionType { none, root, table, mif, loop }
-
-        enum MyNodeType { none, closeIf, closeLoop }
-
-        class TemplateNode
-        {
-            List<TemplateNode> _children;
-
-            private TemplateNode(MySectionType sectionType)
-            {
-                SectionType = sectionType;
-            }
-
-            public TemplateNode(MySectionType sectionType, MyNodeType nodeType, string nodeKey, string nodeText, NpData data)
-            {
-                NodeKey = nodeKey;
-                NodeText = nodeText;
-                NodeType = nodeType;
-
-                SectionType = sectionType;
-
-                NodeData = data ?? throw new ArgumentNullException(nameof(data));
-            }
-
-            /// <summary>
-            /// 区块类型
-            /// </summary>
-            public MySectionType SectionType { get; }
-
-            /// <summary>
-            /// 节点类型
-            /// </summary>
-            public MyNodeType NodeType { get; }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            public string NodeKey { get; }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            public string NodeText { get; }
-
-            /// <summary>
-            /// NPOI数据
-            /// </summary>
-            public NpData NodeData { get; }
-
-            /// <summary>
-            /// 父节点
-            /// </summary>
-            public TemplateNode Parent { get; private set; }
-
-            /// <summary>
-            /// 是否有子节点存在
-            /// </summary>
-            public bool HasChild => _children != null && _children.Count > 0;
-
-            /// <summary>
-            /// 子节点集合
-            /// </summary>
-            public IEnumerable<TemplateNode> Children => _children;
-
-            /// <summary>
-            /// 最后的子节点
-            /// </summary>
-            public TemplateNode LastChild()
-            {
-                return HasChild ? _children[^1] : null;
-            }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            public bool RemoveChild(TemplateNode child)
-            {
-                return HasChild && _children.Remove(child);
-            }
-
-            private TemplateNode AppendChild(MySectionType sectionType, MyNodeType nodeType, string nodeKey, string nodeText, NpData data)
-            {
-                var child = new TemplateNode(sectionType, nodeType, nodeKey, nodeText, data)
-                {
-                    Parent = this
-                };
-
-                if (_children == null)
-                {
-                    _children = new List<TemplateNode>();
-                }
-
-                _children.Add(child);
-
-                return child;
-            }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            public TemplateNode OpenSection(MySectionType openType, string nodeKey, string nodeText, NpData data)
-            {
-                if (openType == MySectionType.mif)
-                {
-                    if (data?.Table != null)
-                    {
-                        throw new TemplateConvertException("暂时不支持在表格中的使用if:" + nodeKey);
-                    }
-                }
-                else if (openType == MySectionType.loop)
-                {
-                    //检查附加循环子节点
-
-                    if (data?.Table == null)
-                    {
-                        throw new TemplateConvertException("暂时仅支持表格中的循环:" + nodeText);
-                    }
-
-                    if (SectionType != MySectionType.table)
-                    {
-                        throw new TemplateConvertException("表格中不支持嵌套循环:" + nodeText);
-                    }
-
-                    //检查是否存在表中同一行的循环
-
-                    if (_children != null)
-                    {
-                        for (var i = _children.Count - 1; i >= 0; i++)
-                        {
-                            if (_children[i].NodeData.Table.RowIndex != NodeData.Table.RowIndex)
-                            {
-                                break;
-                            }
-
-                            if (_children[i].SectionType == MySectionType.loop && !_children[i].IsLoopInSameCell())
-                            {
-                                throw new TemplateConvertException($"表格中同一行内不支持多个跨单元格循环:{_children[i].LastChild().NodeText},{nodeText}");
-                            }
-                        }
-                    }
-                }
-                else if (openType != MySectionType.table)
-                {
-                    throw new InvalidOperationException();
-                }
-
-                return AppendChild(openType, MyNodeType.none, nodeKey, nodeText, data);
-            }
-
-            public TemplateNode CloseSection(MySectionType closeType, string nodeKey, string nodeText, NpData data)
-            {
-                if (SectionType == MySectionType.none)
-                {
-                    throw new InvalidOperationException();
-                }
-
-                if (closeType == MySectionType.mif)
-                {
-                    if (data?.Table != null)
-                    {
-                        throw new TemplateConvertException("暂时不支持在表格中使用:" + nodeText);
-                    }
-
-                    if (SectionType != MySectionType.mif)
-                    {
-                        throw new TemplateConvertException("没有找到要关闭的区块:" + nodeText);
-                    }
-
-                    if (NodeKey != nodeKey)
-                    {
-                        throw new TemplateConvertException($"执行 {nodeText} 之前请先关闭 {NodeText}");
-                    }
-
-                    return AppendChild(MySectionType.none, MyNodeType.closeIf, nodeKey, nodeText, data);
-                }
-
-                if (closeType == MySectionType.loop)
-                {
-                    if (data?.Table == null)
-                    {
-                        throw new TemplateConvertException("暂时仅支持表格中的循环:" + nodeText);
-                    }
-
-                    if (SectionType != MySectionType.loop)
-                    {
-                        throw new TemplateConvertException("没有找到要关闭的区块:" + nodeText);
-                    }
-
-                    if (NodeKey != nodeKey)
-                    {
-                        throw new TemplateConvertException($"执行 {nodeText} 之前请先关闭 {NodeText}");
-                    }
-
-                    return AppendChild(MySectionType.none, MyNodeType.closeLoop, nodeKey, nodeText, data);
-                }
-
-                if (closeType == MySectionType.table)
-                {
-
-                }
-
-                return this;
-            }
-
-            /// <summary>
-            /// 附加子节点
-            /// </summary>
-            public TemplateNode AppendChild(string nodeKey, string nodeText, NpData data)
-            {
-                if (SectionType == MySectionType.none)
-                {
-                    throw new InvalidOperationException();
-                }
-
-                return AppendChild(MySectionType.none, MyNodeType.none, nodeKey, nodeText, data);
-            }
-
-            //循环是否在同一个单元格中开始并关闭
-            private bool IsLoopInSameCell()
-            {
-                if (SectionType == MySectionType.loop)
-                {
-                    var last = LastChild();
-
-                    if (last != null)
-                    {
-                        return last.NodeType == MyNodeType.closeLoop && NodeData.Table.Cell == last.NodeData.Table.Cell;
-                    }
-                }
-
-                return false;
-            }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            public static TemplateNode CreateRootSection()
-            {
-                return new TemplateNode(MySectionType.root);
             }
         }
 

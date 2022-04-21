@@ -1,6 +1,4 @@
-﻿using System.Text;
-
-namespace NetCoreTest.System.Text
+﻿namespace System.Text
 {
     [TestClass]
     public class EncodingTest
