@@ -74,9 +74,9 @@ namespace ThirdPartyLibTest.OfficeLib
 
         private string CreateBadTemplate(string badKey)
         {
-            XWPFDocument doc = new XWPFDocument();
-            XWPFParagraph para = doc.CreateParagraph();
-            XWPFRun r0 = para.CreateRun();
+            var doc = new XWPFDocument();
+            var para = doc.CreateParagraph();
+            var r0 = para.CreateRun();
             r0.SetText("{{#loop1}}");
 
             if (badKey == "bad2")
@@ -114,11 +114,11 @@ namespace ThirdPartyLibTest.OfficeLib
                 r0 = para.CreateRun();
                 r0.SetText("{{#loop2}}");
 
-                XWPFTable table = doc.CreateTable(3, 3);
+                var table = doc.CreateTable(3, 3);
 
-                XWPFTableCell c1 = table.GetRow(0).GetCell(0);
-                XWPFParagraph p1 = c1.AddParagraph();
-                XWPFRun r1 = p1.CreateRun();
+                var c1 = table.GetRow(0).GetCell(0);
+                var p1 = c1.AddParagraph();
+                var r1 = p1.CreateRun();
                 r1.SetText("{{#loop3}}{{A1}}{{/loop3}}");
 
                 table.GetRow(1).GetCell(1).SetText("{{/loop2}}");
@@ -126,7 +126,7 @@ namespace ThirdPartyLibTest.OfficeLib
 
             var tempFilePath = Path.GetTempFileName();
 
-            using (FileStream fs = new FileStream(tempFilePath, FileMode.Create))
+            using (var fs = new FileStream(tempFilePath, FileMode.Create))
             {
                 doc.Write(fs);
             }
@@ -137,23 +137,33 @@ namespace ThirdPartyLibTest.OfficeLib
         [TestMethod("测试坏的文档模板")]
         public void TestTemplate1()
         {
-            string templatePath = Path.Combine(AppContext.BaseDirectory, "Resources\\OfficeLib\\test1.docx");
+            var templatePath = Path.Combine(AppContext.BaseDirectory, "Resources\\OfficeLib\\test1.docx");
 
             var targetPath = Path.Combine("d:\\", "test1.docx");
 
             var converter = new NpoiDocTemplateConverter();
 
             converter.AddVariable("BeginIf1", true);
-            var jn = new JsonObject
+
+            var loop4 = new JsonObject {
+                {"A1","myA1" },
+                {"A2","myA2" },
+                {"A3","myA3" },
+                {"A4","myA4" },
+                {"A5","myA5" },
+            };
+            var testObj = new JsonObject
             {
                 { "A1", "测试A1" },
                 { "A2", "测试A2" },
                 { "B1", "测试BB1" },
                 { "B2", "测试BB2" },
                 { "T11", "测试T11" },
+                { "loop4", loop4 },
             };
 
-            converter.AddVariable("Test", jn);
+            converter.AddVariable("Test", testObj);
+            converter.AddVariable("loop4", loop4);
 
             converter.Convert(templatePath, targetPath);
         }

@@ -186,23 +186,14 @@ namespace OfficeLib
             var beginData = loopSection.NodeData;
             var endData = loopSection.EndNode.NodeData;
 
-            var beginRowIndex = beginData.RowIndex;
-            var endRowIndex = endData.RowIndex;
-
-            var beginPara = beginData.Paragraph;
-            beginPara.ReplaceText(loopSection.NodeText, string.Empty);
-
-            var endPara = endData.Paragraph;
-            endPara.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
+            var beginRowIndex = beginData.RowIndex + rowIncrement;
+            var endRowIndex = endData.RowIndex + rowIncrement;
 
             var jval = GetPathValue(loopSection.NodeKey);
             var loopArray = JsonHelper.GetLoopArray(jval);
 
             if (loopArray == null)
             {
-                beginRowIndex += rowIncrement;
-                endRowIndex += rowIncrement;
-
                 //清理区块起始标识所在的单元格
                 var beginRow = table.GetRow(beginRowIndex);
                 var beginCell = beginRow.GetCell(beginData.CellIndex);
@@ -254,6 +245,32 @@ namespace OfficeLib
             }
             else
             {
+                var beginPara = beginData.Paragraph;
+                beginPara.ReplaceText(loopSection.NodeText, string.Empty);
+                if (string.IsNullOrWhiteSpace(beginPara.Text))
+                {
+                    var beginRow = table.GetRow(beginRowIndex);
+                    var beginCell = beginRow.GetCell(beginData.CellIndex);
+                    beginCell.RemoveParagraph(beginData.BodyIndex);
+                    if (beginCell.Paragraphs.Count > 0)
+                    {
+                        foreach (var child in loopSection.Children)
+                        {
+                            if (child.NodeData.CellIndex == beginData.CellIndex)
+                            {
+                                child.NodeData.BodyIndex--;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        beginCell.SetText(string.Empty);
+                    }
+                }
+
+                var endPara = endData.Paragraph;
+                endPara.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
+
                 foreach (var loopValue in loopArray)
                 {
                     var rowIncrement2 = rowIncrement;
@@ -488,5 +505,219 @@ namespace OfficeLib
         }
 
         #endregion
+
+        struct TableHandler
+        {
+            readonly XWPFTable _table;
+
+            public TableHandler(XWPFTable table)
+            {
+                _table = table;
+            }
+
+            /// <summary>
+            /// 处理表格内的循环区块
+            /// </summary>
+            public void HandleLoop(NpDocTemplateNode loopSection, JsonArray loopValues, ref int rowIncrement, Func<string, JsonValue, JsonValue> GetPathValue)
+            {
+                if (loopValues == null)
+                {
+                    RemoveLoopSectionRange(loopSection, ref rowIncrement);
+                }
+                else
+                {
+                    RemoveLoopSectionBeginToken(loopSection, rowIncrement);
+                    RemoveLoopSectionEndToken(loopSection, rowIncrement);
+
+                    var rowIncrement2 = rowIncrement;
+                    var beginRowIndex = loopSection.NodeData.RowIndex + rowIncrement;
+                    var endRowIndex = loopSection.EndNode.NodeData.RowIndex + rowIncrement;
+
+                    for (var i = 1; i < loopValues.Count; i++)
+                    {
+                        for (var rIndex = endRowIndex; rIndex >= beginRowIndex; rIndex--)
+                        {
+                            var row = _table.Rows[rIndex];
+                            var copiedRow = new XWPFTableRow(row.GetCTRow().Copy(), _table);
+                            _table.AddRow(copiedRow, endRowIndex + 1);
+                            rowIncrement++;
+                        }
+                    }
+
+                    var rowCount = endRowIndex - beginRowIndex + 1;
+
+                    foreach (var loopValue in loopValues)
+                    {
+                        foreach (var child in loopSection.Children)
+                        {
+                            var row = _table.Rows[child.NodeData.RowIndex + rowIncrement2];
+                            var cell = row.GetCell(child.NodeData.CellIndex);
+                            var para = cell.Paragraphs[child.NodeData.BodyIndex];
+                            var jstr = GetPathValue(child.NodeKey, loopValue)?.ToString();
+                            para.ReplaceText(child.NodeText, jstr ?? string.Empty);
+                        }
+
+                        rowIncrement2 += rowCount;
+                    }
+                }
+            }
+
+            /// <summary>
+            /// 移除循环开始标识
+            /// </summary>
+            private void RemoveLoopSectionBeginToken(NpDocTemplateNode loopSection, int rowIncrement)
+            {
+                var beginData = loopSection.NodeData;
+
+                beginData.Paragraph.ReplaceText(loopSection.NodeText, string.Empty);
+
+                if (!string.IsNullOrWhiteSpace(beginData.Paragraph.Text))
+                {
+                    return;
+                }
+
+                var beginRow = _table.GetRow(beginData.RowIndex + rowIncrement);
+                var beginCell = beginRow.GetCell(beginData.CellIndex);
+
+                beginCell.RemoveParagraph(beginData.BodyIndex);
+
+                if (beginCell.Paragraphs.Count > 0)
+                {
+                    //将同一单元格中后续节点的段落索引值前移一位
+                    foreach (var child in loopSection.Children)
+                    {
+                        if (child.NodeData.CellIndex == beginData.CellIndex)
+                        {
+                            child.NodeData.BodyIndex--;
+                        }
+                    }
+
+                    if (loopSection.EndNode.NodeData.CellIndex == beginData.CellIndex)
+                    {
+                        loopSection.EndNode.NodeData.BodyIndex--;
+                    }
+                }
+                else
+                {
+                    beginCell.SetText(string.Empty);
+                }
+            }
+
+            /// <summary>
+            /// 移除循环结束标识
+            /// </summary>
+            private void RemoveLoopSectionEndToken(NpDocTemplateNode loopSection, int rowIncrement)
+            {
+                var endData = loopSection.EndNode.NodeData;
+
+                endData.Paragraph.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
+
+                if (string.IsNullOrWhiteSpace(endData.Paragraph.Text))
+                {
+                    var endRow = _table.GetRow(endData.RowIndex + rowIncrement);
+                    var endCell = endRow.GetCell(endData.CellIndex);
+
+                    endCell.RemoveParagraph(endData.BodyIndex);
+
+                    if (endCell.Paragraphs.Count < 1)
+                    {
+                        endCell.SetText(string.Empty);
+                    }
+
+                    //结束节点后面已经被预先处理了
+                }
+            }
+
+            /// <summary>
+            /// 移除表格内的循环区块,如果循环首尾行有外部数据存在则保留外部数据
+            /// </summary>
+            private void RemoveLoopSectionRange(NpDocTemplateNode loopSection, ref int rowIncrement)
+            {
+                var beginData = loopSection.NodeData;
+                var endData = loopSection.EndNode.NodeData;
+
+                var beginRowIndex = beginData.RowIndex + rowIncrement;
+                var endRowIndex = endData.RowIndex + rowIncrement;
+
+                //清理区块起始标识所在的单元格
+                var beginRow = _table.GetRow(beginRowIndex);
+                var beginCell = beginRow.GetCell(beginData.CellIndex);
+                while (beginCell.Paragraphs.Count > beginData.BodyIndex)
+                {
+                    beginCell.RemoveParagraph(beginData.BodyIndex);
+                }
+                beginCell.SetText(string.Empty);
+
+                //清理区块结束标识所在的单元格
+                var endRow = _table.GetRow(endRowIndex);
+                var endCell = endRow.GetCell(endData.CellIndex);
+                for (var i = 0; i <= endData.BodyIndex; i++)
+                {
+                    endCell.RemoveParagraph(0);
+                }
+                endCell.SetText(string.Empty);
+
+                //删除首行判断
+                var cells = beginRow.GetTableCells();
+                if (!IsRangeEmpty(cells, 0, beginData.CellIndex))
+                {
+                    //如果首行不为空则设置循环开始标识后的单元格为空值
+                    var endCellIndex = beginRowIndex == endRowIndex ? endData.CellIndex : cells.Count;
+                    ClearRange(cells, beginData.CellIndex + 1, endCellIndex - 1);
+                    beginRowIndex += 1;
+                }
+
+                //删除尾行判断
+                cells = endRow.GetTableCells();
+                if (!IsRangeEmpty(cells, endData.CellIndex, cells.Count - 1))
+                {
+                    //如果尾行不为空则设置循环结束标识前的单元格为空值
+                    if (beginRowIndex <= endRowIndex)
+                    {
+                        var beginCellIndex = beginRowIndex == endRowIndex ? beginData.CellIndex : 0;
+                        ClearRange(cells, beginCellIndex + 1, endData.CellIndex - 1);
+                    }
+                    endRowIndex -= 1;
+                }
+
+                //执行删除
+                for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
+                {
+                    _table.RemoveRow(beginRowIndex);
+
+                    rowIncrement--;
+                }
+            }
+
+            /// <summary>
+            /// 检查从开始索引位置到结束索引位置的单元格是否都是空的
+            /// </summary>
+            public static bool IsRangeEmpty(List<XWPFTableCell> cells, int beginCellIndex, int endCellIndex)
+            {
+                for (var i = beginCellIndex; i <= endCellIndex; i++)
+                {
+                    if (!string.IsNullOrWhiteSpace(cells[i].GetText()))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            /// <summary>
+            /// 将开始索引位置到结束索引位置的单元格都置为空
+            /// </summary>
+            public static void ClearRange(List<XWPFTableCell> cells, int beginCellIndex, int endCellIndex)
+            {
+                for (var i = beginCellIndex; i <= endCellIndex; i++)
+                {
+                    while (cells[i].Paragraphs.Count > 0)
+                    {
+                        cells[i].RemoveParagraph(0);
+                    }
+                    cells[i].SetText(string.Empty);
+                }
+            }
+        }
     }
 }
