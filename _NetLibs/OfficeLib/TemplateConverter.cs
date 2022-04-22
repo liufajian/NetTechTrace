@@ -1,6 +1,7 @@
 ﻿using OfficeLib.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace OfficeLib
 {
@@ -25,6 +26,10 @@ namespace OfficeLib
 
             _dicVar[TrimKey(varKey)] = value;
         }
+
+        public abstract void Convert(string templatePath, string outputFilePath);
+
+        public abstract void Convert(Stream templateStream, string outputFilePath);
 
         /// <summary>
         /// 

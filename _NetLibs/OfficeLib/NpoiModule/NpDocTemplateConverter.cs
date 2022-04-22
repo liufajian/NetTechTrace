@@ -17,7 +17,7 @@ namespace OfficeLib.NpoiModule
 
         }
 
-        public void Convert(string templatePath, string outputFilePath)
+        public override void Convert(string templatePath, string outputFilePath)
         {
             if (templatePath == null)
             {
@@ -35,7 +35,7 @@ namespace OfficeLib.NpoiModule
             }
         }
 
-        public void Convert(Stream templateStream, string outputFilePath)
+        public override void Convert(Stream templateStream, string outputFilePath)
         {
             if (templateStream is null)
             {
@@ -524,12 +524,15 @@ namespace OfficeLib.NpoiModule
 
                 //清理区块结束标识所在的单元格
                 var endRow = _table.GetRow(endRowIndex);
-                var endCell = endRow.GetCell(endData.CellIndex);
-                for (var i = 0; i <= endData.BodyIndex; i++)
+                if (beginData.TableCellPos != endData.TableCellPos)
                 {
-                    endCell.RemoveParagraph(0);
+                    var endCell = endRow.GetCell(endData.CellIndex);
+                    for (var i = 0; i <= endData.BodyIndex; i++)
+                    {
+                        endCell.RemoveParagraph(0);
+                    }
+                    endCell.SetText(string.Empty);
                 }
-                endCell.SetText(string.Empty);
 
                 //删除首行判断
                 var cells = beginRow.GetTableCells();

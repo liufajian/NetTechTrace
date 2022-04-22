@@ -166,6 +166,8 @@ namespace ThirdPartyLibTest.OfficeLib
 
             var loop44 = new JsonArray() { loop4, loop4 };
 
+            var loop5 = new JsonArray() { "L5-1", "L5-2", "L5-3", "L5-4" };
+
             var testObj = new JsonObject
             {
                 { "A1", "测试A1" },
@@ -179,6 +181,7 @@ namespace ThirdPartyLibTest.OfficeLib
             converter.AddVariable("Test", testObj);
             converter.AddVariable("loop2", loop22);
             converter.AddVariable("loop4", loop44);
+            converter.AddVariable("loop5", loop5);
 
             converter.Convert(templatePath, targetPath);
         }
