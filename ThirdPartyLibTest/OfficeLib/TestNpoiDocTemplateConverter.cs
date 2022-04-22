@@ -1,6 +1,7 @@
 ﻿using NPOI.XWPF.UserModel;
 using OfficeLib;
 using OfficeLib.Json;
+using OfficeLib.NpoiModule;
 
 namespace ThirdPartyLibTest.OfficeLib
 {
@@ -14,7 +15,7 @@ namespace ThirdPartyLibTest.OfficeLib
 
             var targetPath = "111.docx";
 
-            var converter = new NpoiDocTemplateConverter();
+            var converter = new NpDocTemplateConverter();
 
             try
             {
@@ -141,9 +142,19 @@ namespace ThirdPartyLibTest.OfficeLib
 
             var targetPath = Path.Combine("d:\\", "test1.docx");
 
-            var converter = new NpoiDocTemplateConverter();
+            var converter = new NpDocTemplateConverter();
 
             converter.AddVariable("BeginIf1", true);
+
+            var loop2 = new JsonObject {
+                {"A1","myA1/2" },
+                {"A2","myA2/2" },
+                {"A3","myA3/2" },
+                {"A4","myA4/2" },
+                {"A5","myA5/2" },
+            };
+            
+            var loop22 = new JsonArray() { loop2, loop2 };
 
             var loop4 = new JsonObject {
                 {"A1","myA1" },
@@ -152,6 +163,9 @@ namespace ThirdPartyLibTest.OfficeLib
                 {"A4","myA4" },
                 {"A5","myA5" },
             };
+
+            var loop44 = new JsonArray() { loop4, loop4 };
+
             var testObj = new JsonObject
             {
                 { "A1", "测试A1" },
@@ -163,7 +177,8 @@ namespace ThirdPartyLibTest.OfficeLib
             };
 
             converter.AddVariable("Test", testObj);
-            converter.AddVariable("loop4", loop4);
+            converter.AddVariable("loop2", loop22);
+            converter.AddVariable("loop4", loop44);
 
             converter.Convert(templatePath, targetPath);
         }

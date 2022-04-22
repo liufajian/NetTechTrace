@@ -5,14 +5,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
-namespace OfficeLib
+namespace OfficeLib.NpoiModule
 {
     /// <summary>
     /// 
     /// </summary>
-    public partial class NpoiDocTemplateConverter : TemplateConverter
+    public class NpDocTemplateConverter : TemplateConverter
     {
-        public NpoiDocTemplateConverter()
+        public NpDocTemplateConverter()
         {
 
         }
@@ -56,13 +56,13 @@ namespace OfficeLib
 
             foreach (var section in root.Children)
             {
-                if (section.SectionType == MySectionType.table)
+                if (section.SectionType == NpDocSectionType.table)
                 {
                     var table = (XWPFTable)doc.BodyElements[section.NodeData.BodyIndex + bodyIndexIncrement];
 
                     HandleTable(table, section);
                 }
-                else if (section.SectionType == MySectionType.mif)
+                else if (section.SectionType == NpDocSectionType.mif)
                 {
                     HandleBodyIf(doc, section, ref bodyIndexIncrement);
                 }
@@ -153,17 +153,19 @@ namespace OfficeLib
                 {
                     if (loopSection.EndNode.NodeData.RowIndex != child.NodeData.RowIndex)
                     {
-                        HandleTableLoop(table, loopSection, ref rowIncrement);
+                        var jval = GetPathValue(loopSection.NodeKey);
+                        var loopValues = JsonHelper.GetLoopArray(jval);
+                        new NpDocTableHandler(table).HandleLoop(loopSection, loopValues, ref rowIncrement, GetPathValue);
 
                         loopSection = null;
                     }
                     else
                     {
-                        System.Diagnostics.Debug.Assert(child.SectionType != MySectionType.loop);
+                        System.Diagnostics.Debug.Assert(child.SectionType != NpDocSectionType.loop);
                     }
                 }
 
-                if (child.SectionType == MySectionType.loop)
+                if (child.SectionType == NpDocSectionType.loop)
                 {
                     loopSection = child; //碰到循环后,先将循环结束标识后位于同一行的单元格处理掉
                 }
@@ -177,145 +179,9 @@ namespace OfficeLib
 
             if (loopSection != null)
             {
-                HandleTableLoop(table, loopSection, ref rowIncrement);
-            }
-        }
-
-        private void HandleTableLoop(XWPFTable table, NpDocTemplateNode loopSection, ref int rowIncrement)
-        {
-            var beginData = loopSection.NodeData;
-            var endData = loopSection.EndNode.NodeData;
-
-            var beginRowIndex = beginData.RowIndex + rowIncrement;
-            var endRowIndex = endData.RowIndex + rowIncrement;
-
-            var jval = GetPathValue(loopSection.NodeKey);
-            var loopArray = JsonHelper.GetLoopArray(jval);
-
-            if (loopArray == null)
-            {
-                //清理区块起始标识所在的单元格
-                var beginRow = table.GetRow(beginRowIndex);
-                var beginCell = beginRow.GetCell(beginData.CellIndex);
-                while (beginCell.Paragraphs.Count > beginData.BodyIndex)
-                {
-                    beginCell.RemoveParagraph(beginData.BodyIndex);
-                }
-                beginCell.SetText(string.Empty);
-
-                //清理区块结束标识所在的单元格
-                var endRow = table.GetRow(endRowIndex);
-                var endCell = endRow.GetCell(endData.CellIndex);
-                for (var i = 0; i <= endData.BodyIndex; i++)
-                {
-                    endCell.RemoveParagraph(0);
-                }
-                endCell.SetText(string.Empty);
-
-                //删除首行判断
-                var cells = beginRow.GetTableCells();
-                if (!isRangeEmpty(cells, 0, beginData.CellIndex))
-                {
-                    //如果首行不为空则设置循环开始标识后的单元格为空值
-                    var endCellIndex = beginRowIndex == endRowIndex ? endData.CellIndex : cells.Count;
-                    clearRange(cells, beginData.CellIndex + 1, endCellIndex - 1);
-                    beginRowIndex += 1;
-                }
-
-                //删除尾行判断
-                cells = endRow.GetTableCells();
-                if (!isRangeEmpty(cells, endData.CellIndex, cells.Count - 1))
-                {
-                    //如果尾行不为空则设置循环结束标识前的单元格为空值
-                    if (beginRowIndex <= endRowIndex)
-                    {
-                        var beginCellIndex = beginRowIndex == endRowIndex ? beginData.CellIndex : 0;
-                        clearRange(cells, beginCellIndex + 1, endData.CellIndex - 1);
-                    }
-                    endRowIndex -= 1;
-                }
-
-                //执行删除
-                for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
-                {
-                    table.RemoveRow(beginRowIndex);
-
-                    rowIncrement--;
-                }
-            }
-            else
-            {
-                var beginPara = beginData.Paragraph;
-                beginPara.ReplaceText(loopSection.NodeText, string.Empty);
-                if (string.IsNullOrWhiteSpace(beginPara.Text))
-                {
-                    var beginRow = table.GetRow(beginRowIndex);
-                    var beginCell = beginRow.GetCell(beginData.CellIndex);
-                    beginCell.RemoveParagraph(beginData.BodyIndex);
-                    if (beginCell.Paragraphs.Count > 0)
-                    {
-                        foreach (var child in loopSection.Children)
-                        {
-                            if (child.NodeData.CellIndex == beginData.CellIndex)
-                            {
-                                child.NodeData.BodyIndex--;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        beginCell.SetText(string.Empty);
-                    }
-                }
-
-                var endPara = endData.Paragraph;
-                endPara.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
-
-                foreach (var loopValue in loopArray)
-                {
-                    var rowIncrement2 = rowIncrement;
-
-                    for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
-                    {
-                        var row = table.Rows[rowIncrement + rIndex];
-                        var copiedRow = new XWPFTableRow(row.GetCTRow().Copy(), table);
-                        table.AddRow(copiedRow, rowIncrement2 + rIndex);
-                        rowIncrement++;
-                    }
-
-                    foreach (var child in loopSection.Children)
-                    {
-                        var row = table.Rows[child.NodeData.RowIndex + rowIncrement2];
-                        var cell = row.GetCell(child.NodeData.CellIndex);
-                        var para = cell.Paragraphs[child.NodeData.BodyIndex];
-                        var jstr = GetPathValue(child.NodeKey, loopValue)?.ToString();
-                        para.ReplaceText(child.NodeText, jstr ?? string.Empty);
-                    }
-                }
-            }
-
-            bool isRangeEmpty(List<XWPFTableCell> cells, int beginCellIndex, int endCellIndex)
-            {
-                for (var i = beginCellIndex; i <= endCellIndex; i++)
-                {
-                    if (!string.IsNullOrWhiteSpace(cells[i].GetText()))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
-
-            void clearRange(List<XWPFTableCell> cells, int beginCellIndex, int endCellIndex)
-            {
-                for (var i = beginCellIndex; i <= endCellIndex; i++)
-                {
-                    while (cells[i].Paragraphs.Count > 0)
-                    {
-                        cells[i].RemoveParagraph(0);
-                    }
-                    cells[i].SetText(string.Empty);
-                }
+                var jval = GetPathValue(loopSection.NodeKey);
+                var loopValues = JsonHelper.GetLoopArray(jval);
+                new NpDocTableHandler(table).HandleLoop(loopSection, loopValues, ref rowIncrement, GetPathValue);
             }
         }
 
@@ -391,7 +257,7 @@ namespace OfficeLib
             {
                 if (doc.BodyElements[i] is XWPFParagraph paragraph)
                 {
-                    ParseParagraph(ref curSection, new NpData { Paragraph = paragraph, BodyIndex = i });
+                    ParseParagraph(ref curSection, new NpDocData { Paragraph = paragraph, BodyIndex = i });
                 }
                 else if (doc.BodyElements[i] is XWPFTable table)
                 {
@@ -408,7 +274,7 @@ namespace OfficeLib
         /// <summary>
         /// 
         /// </summary>
-        private void ParseParagraph(ref NpDocTemplateNode curSection, NpData data)
+        private void ParseParagraph(ref NpDocTemplateNode curSection, NpDocData data)
         {
             var matches = Regex.Matches(data.Paragraph.Text, @"\{\{(.+?)}}");
 
@@ -425,13 +291,13 @@ namespace OfficeLib
                 {
                     nodeKey = nodeKey.Substring(4).TrimStart();
 
-                    curSection = curSection.BeginSection(MySectionType.mif, nodeKey, nodeText: m.Value, data: data);
+                    curSection = curSection.BeginSection(NpDocSectionType.mif, nodeKey, nodeText: m.Value, data: data);
                 }
                 else if (nodeKey.StartsWith("/if "))
                 {
                     nodeKey = nodeKey.Substring(4).TrimStart();
 
-                    curSection.EndSection(MySectionType.mif, nodeKey, nodeText: m.Value, data: data);
+                    curSection.EndSection(NpDocSectionType.mif, nodeKey, nodeText: m.Value, data: data);
 
                     curSection = curSection.Parent;
                 }
@@ -439,17 +305,17 @@ namespace OfficeLib
                 {
                     nodeKey = nodeKey.Substring(6).TrimStart();
 
-                    curSection = curSection.BeginSection(MySectionType.loop, nodeKey, nodeText: m.Value, data: data);
+                    curSection = curSection.BeginSection(NpDocSectionType.loop, nodeKey, nodeText: m.Value, data: data);
                 }
                 else if (nodeKey.StartsWith("/loop "))
                 {
                     nodeKey = nodeKey.Substring(6).TrimStart();
 
-                    curSection.EndSection(MySectionType.loop, nodeKey, nodeText: m.Value, data: data);
+                    curSection.EndSection(NpDocSectionType.loop, nodeKey, nodeText: m.Value, data: data);
 
                     curSection = curSection.Parent;
                 }
-                else if (curSection.SectionType != MySectionType.none)
+                else if (curSection.SectionType != NpDocSectionType.none)
                 {
                     curSection.AppendChildNode(nodeKey, nodeText: m.Value, data: data);
                 }
@@ -467,12 +333,12 @@ namespace OfficeLib
         //不支持嵌套表格
         private void ParseTable(NpDocTemplateNode curSection, XWPFTable table, int bodyIndex)
         {
-            var data = new NpData
+            var data = new NpDocData
             {
                 BodyIndex = bodyIndex
             };
 
-            var tableSection = curSection.BeginSection(MySectionType.table, nodeKey: null, nodeText: null, data: data);
+            var tableSection = curSection.BeginSection(NpDocSectionType.table, nodeKey: null, nodeText: null, data: data);
 
             curSection = tableSection;
 
@@ -486,7 +352,7 @@ namespace OfficeLib
 
                     for (var pIndex = 0; pIndex < paras.Count; pIndex++)
                     {
-                        data = new NpData
+                        data = new NpDocData
                         {
                             BodyIndex = pIndex,
                             Paragraph = paras[pIndex],
@@ -506,11 +372,14 @@ namespace OfficeLib
 
         #endregion
 
-        struct TableHandler
+        /// <summary>
+        /// npoi文档表格处理
+        /// </summary>
+        struct NpDocTableHandler
         {
             readonly XWPFTable _table;
 
-            public TableHandler(XWPFTable table)
+            public NpDocTableHandler(XWPFTable table)
             {
                 _table = table;
             }
@@ -522,12 +391,12 @@ namespace OfficeLib
             {
                 if (loopValues == null)
                 {
-                    RemoveLoopSectionRange(loopSection, ref rowIncrement);
+                    RemoveLoopSectionFull(loopSection, ref rowIncrement);
                 }
                 else
                 {
-                    RemoveLoopSectionBeginToken(loopSection, rowIncrement);
-                    RemoveLoopSectionEndToken(loopSection, rowIncrement);
+                    RemoveLoopSectionBegin(loopSection, rowIncrement);
+                    RemoveLoopSectionEnd(loopSection, rowIncrement);
 
                     var rowIncrement2 = rowIncrement;
                     var beginRowIndex = loopSection.NodeData.RowIndex + rowIncrement;
@@ -565,7 +434,7 @@ namespace OfficeLib
             /// <summary>
             /// 移除循环开始标识
             /// </summary>
-            private void RemoveLoopSectionBeginToken(NpDocTemplateNode loopSection, int rowIncrement)
+            private void RemoveLoopSectionBegin(NpDocTemplateNode loopSection, int rowIncrement)
             {
                 var beginData = loopSection.NodeData;
 
@@ -586,13 +455,18 @@ namespace OfficeLib
                     //将同一单元格中后续节点的段落索引值前移一位
                     foreach (var child in loopSection.Children)
                     {
-                        if (child.NodeData.CellIndex == beginData.CellIndex)
+                        if (child.NodeData.TableCellPos == beginData.TableCellPos)
                         {
                             child.NodeData.BodyIndex--;
                         }
+                        else
+                        {
+                            break;
+                        }
                     }
 
-                    if (loopSection.EndNode.NodeData.CellIndex == beginData.CellIndex)
+                    //如果结束标识和开始标识在同一个单元格中
+                    if (beginData.TableCellPos == loopSection.EndNode.NodeData.TableCellPos)
                     {
                         loopSection.EndNode.NodeData.BodyIndex--;
                     }
@@ -606,7 +480,7 @@ namespace OfficeLib
             /// <summary>
             /// 移除循环结束标识
             /// </summary>
-            private void RemoveLoopSectionEndToken(NpDocTemplateNode loopSection, int rowIncrement)
+            private void RemoveLoopSectionEnd(NpDocTemplateNode loopSection, int rowIncrement)
             {
                 var endData = loopSection.EndNode.NodeData;
 
@@ -631,7 +505,7 @@ namespace OfficeLib
             /// <summary>
             /// 移除表格内的循环区块,如果循环首尾行有外部数据存在则保留外部数据
             /// </summary>
-            private void RemoveLoopSectionRange(NpDocTemplateNode loopSection, ref int rowIncrement)
+            private void RemoveLoopSectionFull(NpDocTemplateNode loopSection, ref int rowIncrement)
             {
                 var beginData = loopSection.NodeData;
                 var endData = loopSection.EndNode.NodeData;
