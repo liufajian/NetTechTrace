@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text;
 
-namespace OfficeLib.Json
+namespace OfficeLib.JsonNodes
 {
     public class JsonString : JsonValue
     {

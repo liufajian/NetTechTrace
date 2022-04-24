@@ -1,4 +1,4 @@
-namespace OfficeLib.Json
+namespace OfficeLib.JsonNodes
 {
     public enum JsonType
     {

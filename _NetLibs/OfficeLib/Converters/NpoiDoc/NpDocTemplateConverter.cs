@@ -1,5 +1,5 @@
 ﻿using NPOI.XWPF.UserModel;
-using OfficeLib.Json;
+using OfficeLib.JsonNodes;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,14 +10,16 @@ namespace OfficeLib.NpoiModule
     /// <summary>
     /// 
     /// </summary>
-    public class NpDocTemplateConverter : TemplateConverter
+    public class NpDocTemplateConverter
     {
+        VarDictionary _varDic;
+
         public NpDocTemplateConverter()
         {
 
         }
 
-        public override void Convert(string templatePath, string outputFilePath)
+        public void Convert(string templatePath, string outputFilePath, VarDictionary varDic)
         {
             if (templatePath == null)
             {
@@ -31,11 +33,11 @@ namespace OfficeLib.NpoiModule
 
             using (var rs = File.OpenRead(templatePath))
             {
-                Convert(rs, outputFilePath);
+                Convert(rs, outputFilePath, varDic);
             }
         }
 
-        public override void Convert(Stream templateStream, string outputFilePath)
+        public void Convert(Stream templateStream, string outputFilePath, VarDictionary varDic)
         {
             if (templateStream is null)
             {
@@ -46,6 +48,15 @@ namespace OfficeLib.NpoiModule
             {
                 throw new ArgumentNullException(nameof(outputFilePath));
             }
+
+            if (varDic == null || varDic.Count < 1)
+            {
+                using var outputStream = File.OpenWrite(outputFilePath);
+                templateStream.CopyTo(outputStream);
+                return;
+            }
+
+            _varDic = varDic;
 
             var doc = new XWPFDocument(templateStream);
             var root = NpDocTemplateNode.CreateRootSection();
@@ -231,7 +242,7 @@ namespace OfficeLib.NpoiModule
 
             if (index < 0)
             {
-                return loopValue is JsonObject jobj1 && jobj1.TryGetValue(pathKey, out var jn1) ? jn1 : base.GetVarValue(pathKey);
+                return loopValue is JsonObject jobj1 && jobj1.TryGetValue(pathKey, out var jn1) ? jn1 : _varDic.GetVarValue(pathKey);
             }
 
             if (index == 0)
@@ -240,7 +251,7 @@ namespace OfficeLib.NpoiModule
             }
 
             var key1 = pathKey[..index];
-            var jval = loopValue is JsonObject jobj2 && jobj2.TryGetValue(key1, out var jn2) ? jn2 : base.GetVarValue(key1);
+            var jval = loopValue is JsonObject jobj2 && jobj2.TryGetValue(key1, out var jn2) ? jn2 : _varDic.GetVarValue(key1);
             return JsonHelper.GetPropertyValue(jval, pathKey.AsSpan()[(index + 1)..]);
         }
 
@@ -267,7 +278,7 @@ namespace OfficeLib.NpoiModule
 
             if (curSection != rootSection)
             {
-                throw new TemplateConvertException("区块未关闭:" + curSection.NodeText);
+                throw new NpDocException("区块未关闭:" + curSection.NodeText);
             }
         }
 
@@ -366,7 +377,7 @@ namespace OfficeLib.NpoiModule
             //检查是否区块被关闭了
             if (curSection != tableSection)
             {
-                throw new TemplateConvertException("表格中的区块未关闭:" + curSection.NodeText);
+                throw new NpDocException("表格中的区块未关闭:" + curSection.NodeText);
             }
         }
 

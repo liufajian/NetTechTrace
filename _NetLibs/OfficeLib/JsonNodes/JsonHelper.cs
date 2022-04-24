@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using JsonPair = System.Collections.Generic.KeyValuePair<string, OfficeLib.Json.JsonValue>;
+using JsonPair = System.Collections.Generic.KeyValuePair<string, OfficeLib.JsonNodes.JsonValue>;
 
-namespace OfficeLib.Json
+namespace OfficeLib.JsonNodes
 {
     public static class JsonHelper
     {

@@ -100,7 +100,7 @@ namespace OfficeLib.NpoiModule
             {
                 if (data?.TableCellPos != null)
                 {
-                    throw new TemplateConvertException("暂时不支持在表格中的使用if:" + nodeKey);
+                    throw new NpDocException("暂时不支持在表格中的使用if:" + nodeKey);
                 }
             }
             else if (openType == NpDocSectionType.loop)
@@ -109,12 +109,12 @@ namespace OfficeLib.NpoiModule
 
                 if (data?.TableCellPos == null)
                 {
-                    throw new TemplateConvertException("暂时仅支持表格中的循环:" + nodeText);
+                    throw new NpDocException("暂时仅支持表格中的循环:" + nodeText);
                 }
 
                 if (SectionType != NpDocSectionType.table)
                 {
-                    throw new TemplateConvertException("表格中不支持嵌套循环:" + nodeText);
+                    throw new NpDocException("表格中不支持嵌套循环:" + nodeText);
                 }
 
                 //检查是否存在表中同一行的循环
@@ -130,7 +130,7 @@ namespace OfficeLib.NpoiModule
 
                         if (_children[i].SectionType == NpDocSectionType.loop)
                         {
-                            throw new TemplateConvertException($"表格中同一行内不支持多个循环:{_children[i].EndNode.NodeText},{nodeText}");
+                            throw new NpDocException($"表格中同一行内不支持多个循环:{_children[i].EndNode.NodeText},{nodeText}");
                         }
                     }
                 }
@@ -157,17 +157,17 @@ namespace OfficeLib.NpoiModule
             {
                 if (data?.TableCellPos != null)
                 {
-                    throw new TemplateConvertException("暂时不支持在表格中使用:" + nodeText);
+                    throw new NpDocException("暂时不支持在表格中使用:" + nodeText);
                 }
 
                 if (SectionType != NpDocSectionType.mif)
                 {
-                    throw new TemplateConvertException("没有找到要关闭的区块:" + nodeText);
+                    throw new NpDocException("没有找到要关闭的区块:" + nodeText);
                 }
 
                 if (NodeKey != nodeKey)
                 {
-                    throw new TemplateConvertException($"执行 {nodeText} 之前请先关闭 {NodeText}");
+                    throw new NpDocException($"执行 {nodeText} 之前请先关闭 {NodeText}");
                 }
 
                 return EndNode = new NpDocTemplateNode(NpDocSectionType.none, nodeKey, nodeText, data);
@@ -177,17 +177,17 @@ namespace OfficeLib.NpoiModule
             {
                 if (data?.TableCellPos == null)
                 {
-                    throw new TemplateConvertException("暂时仅支持表格中的循环:" + nodeText);
+                    throw new NpDocException("暂时仅支持表格中的循环:" + nodeText);
                 }
 
                 if (SectionType != NpDocSectionType.loop)
                 {
-                    throw new TemplateConvertException("没有找到要关闭的区块:" + nodeText);
+                    throw new NpDocException("没有找到要关闭的区块:" + nodeText);
                 }
 
                 if (NodeKey != nodeKey)
                 {
-                    throw new TemplateConvertException($"执行 {nodeText} 之前请先关闭 {NodeText}");
+                    throw new NpDocException($"执行 {nodeText} 之前请先关闭 {NodeText}");
                 }
 
                 return EndNode = new NpDocTemplateNode(NpDocSectionType.none, nodeKey, nodeText, data);

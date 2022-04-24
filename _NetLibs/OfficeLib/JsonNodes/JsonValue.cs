@@ -3,7 +3,7 @@ using System.Collections;
 using System.Globalization;
 using System.Text;
 
-namespace OfficeLib.Json
+namespace OfficeLib.JsonNodes
 {
     /// <summary>
     /// 

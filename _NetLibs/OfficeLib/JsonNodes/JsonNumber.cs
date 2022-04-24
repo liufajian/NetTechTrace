@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 
-namespace OfficeLib.Json
+namespace OfficeLib.JsonNodes
 {
     public class JsonNumber : JsonValue
     {

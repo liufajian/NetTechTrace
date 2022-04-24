@@ -2,10 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using JsonPair = System.Collections.Generic.KeyValuePair<string, OfficeLib.Json.JsonValue>;
-using JsonPairEnumerable = System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, OfficeLib.Json.JsonValue>>;
+using JsonPair = System.Collections.Generic.KeyValuePair<string, OfficeLib.JsonNodes.JsonValue>;
+using JsonPairEnumerable = System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, OfficeLib.JsonNodes.JsonValue>>;
 
-namespace OfficeLib.Json
+namespace OfficeLib.JsonNodes
 {
     public class JsonObject : JsonValue, IDictionary<string, JsonValue>, ICollection<JsonPair>
     {
