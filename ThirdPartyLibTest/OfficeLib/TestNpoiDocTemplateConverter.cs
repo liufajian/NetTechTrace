@@ -1,7 +1,6 @@
-﻿using NPOI.XWPF.UserModel;
-using OfficeLib;
-using OfficeLib.JsonNodes;
-using OfficeLib.NpoiModule;
+﻿using Newtonsoft.Json.Linq;
+using NPOI.XWPF.UserModel;
+using OfficeLib.Converters;
 
 namespace ThirdPartyLibTest.OfficeLib
 {
@@ -14,14 +13,16 @@ namespace ThirdPartyLibTest.OfficeLib
             string templatePath;
 
             var targetPath = "111.docx";
+            var varDic = new JsonVarDic();
+            varDic.SetVar("a1", "11");
 
-            var converter = new NpDocTemplateConverter();
+            var converter = new GenericConverter();
 
             try
             {
                 templatePath = CreateBadTemplate("bad1");
 
-                converter.Convert(templatePath, targetPath);
+                converter.DocTemplateConvert(templatePath, targetPath, varDic);
             }
             catch (Exception ex)
             {
@@ -32,7 +33,7 @@ namespace ThirdPartyLibTest.OfficeLib
             {
                 templatePath = CreateBadTemplate("bad2");
 
-                converter.Convert(templatePath, targetPath);
+                converter.DocTemplateConvert(templatePath, targetPath, varDic);
             }
             catch (Exception ex)
             {
@@ -43,7 +44,7 @@ namespace ThirdPartyLibTest.OfficeLib
             {
                 templatePath = CreateBadTemplate("bad3");
 
-                converter.Convert(templatePath, targetPath);
+                converter.DocTemplateConvert(templatePath, targetPath, varDic);
             }
             catch (Exception ex)
             {
@@ -54,7 +55,7 @@ namespace ThirdPartyLibTest.OfficeLib
             {
                 templatePath = CreateBadTemplate("bad4");
 
-                converter.Convert(templatePath, targetPath);
+                converter.DocTemplateConvert(templatePath, targetPath, varDic);
             }
             catch (Exception ex)
             {
@@ -65,7 +66,7 @@ namespace ThirdPartyLibTest.OfficeLib
             {
                 templatePath = CreateBadTemplate("bad-table-close1");
 
-                converter.Convert(templatePath, targetPath);
+                converter.DocTemplateConvert(templatePath, targetPath, varDic);
             }
             catch (Exception ex)
             {
@@ -142,21 +143,23 @@ namespace ThirdPartyLibTest.OfficeLib
 
             var targetPath = Path.Combine("d:\\", "test1.docx");
 
-            var converter = new NpDocTemplateConverter();
+            var converter = new GenericConverter();
 
-            converter.AddVariable("BeginIf1", true);
+            var varDic = new JsonVarDic();
 
-            var loop2 = new JsonObject {
+            varDic.SetVar("BeginIf1", true);
+
+            var loop2 = new JObject {
                 {"A1","myA1/2" },
                 {"A2","myA2/2" },
                 {"A3","myA3/2" },
                 {"A4","myA4/2" },
                 {"A5","myA5/2" },
             };
-            
-            var loop22 = new JsonArray() { loop2, loop2 };
 
-            var loop4 = new JsonObject {
+            var loop22 = new JArray() { loop2, loop2 };
+
+            var loop4 = new JObject {
                 {"A1","myA1" },
                 {"A2","myA2" },
                 {"A3","myA3" },
@@ -164,11 +167,15 @@ namespace ThirdPartyLibTest.OfficeLib
                 {"A5","myA5" },
             };
 
-            var loop44 = new JsonArray() { loop4, loop4 };
+            var loop44 = new JArray() { loop4, loop4 };
 
-            var loop5 = new JsonArray() { "L5-1", "L5-2", "L5-3", "L5-4" };
+            var loop5 = new JArray();
+            for (var i = 0; i < 6; i++)
+            {
+                loop5.Add(DateTime.Now.AddDays(i));
+            }
 
-            var testObj = new JsonObject
+            var testObj = new JObject
             {
                 { "A1", "测试A1" },
                 { "A2", "测试A2" },
@@ -178,12 +185,12 @@ namespace ThirdPartyLibTest.OfficeLib
                 { "loop4", loop4 },
             };
 
-            converter.AddVariable("Test", testObj);
-            converter.AddVariable("loop2", loop22);
-            converter.AddVariable("loop4", loop44);
-            converter.AddVariable("loop5", loop5);
+            varDic.SetVar("Test", testObj);
+            varDic.SetVar("loop2", loop22);
+            varDic.SetVar("loop4", loop44);
+            varDic.SetVar("loop5", loop5);
 
-            converter.Convert(templatePath, targetPath);
+            converter.DocTemplateConvert(templatePath, targetPath, varDic);
         }
     }
 }

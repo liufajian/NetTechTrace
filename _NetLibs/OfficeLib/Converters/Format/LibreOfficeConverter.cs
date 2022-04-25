@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
-using System.Threading.Tasks;
 
-namespace OfficeLib.Converters
+namespace OfficeLib.Converters.Format
 {
     public class LibreOfficeFailedException : Exception
     {
@@ -16,11 +15,6 @@ namespace OfficeLib.Converters
 
     public class LibreOfficeConverter
     {
-        public static Task ConvertAsync(string libreOfficePath, string inputFile, string outputFile)
-        {
-            return Task.Run(() => Convert(libreOfficePath, inputFile, outputFile));
-        }
-
         /// <summary>
         /// convert(html->pdf,docx->pdf,docx->html,html->docx)
         /// </summary>
@@ -39,6 +33,7 @@ namespace OfficeLib.Converters
 
             var commandArgs = new List<string>
             {
+                "-env:UserInstallation=file:///d:/temp/p0/",
                 "--convert-to"
             };
 

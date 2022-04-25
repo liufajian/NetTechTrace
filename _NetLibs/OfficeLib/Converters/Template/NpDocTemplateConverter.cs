@@ -1,25 +1,27 @@
-﻿using NPOI.XWPF.UserModel;
-using OfficeLib.JsonNodes;
+﻿using Newtonsoft.Json.Linq;
+using NPOI.OpenXmlFormats.Wordprocessing;
+using NPOI.XWPF.UserModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace OfficeLib.NpoiModule
+namespace OfficeLib.Converters.Template
 {
     /// <summary>
     /// 
     /// </summary>
-    public class NpDocTemplateConverter
+    partial class NpDocTemplateConverter
     {
-        VarDictionary _varDic;
+        JsonVarDic _varDic;
 
         public NpDocTemplateConverter()
         {
 
         }
 
-        public void Convert(string templatePath, string outputFilePath, VarDictionary varDic)
+        public void Convert(string templatePath, string outputFilePath, JsonVarDic varDic)
         {
             if (templatePath == null)
             {
@@ -37,7 +39,7 @@ namespace OfficeLib.NpoiModule
             }
         }
 
-        public void Convert(Stream templateStream, string outputFilePath, VarDictionary varDic)
+        public void Convert(Stream templateStream, string outputFilePath, JsonVarDic varDic)
         {
             if (templateStream is null)
             {
@@ -63,19 +65,17 @@ namespace OfficeLib.NpoiModule
 
             ParseDocument(doc, root);
 
-            var bodyIndexIncrement = 0;
-
-            foreach (var section in root.Children)
+            foreach (var section in root.Children.Reverse())
             {
                 if (section.SectionType == NpDocSectionType.table)
                 {
-                    var table = (XWPFTable)doc.BodyElements[section.NodeData.BodyIndex + bodyIndexIncrement];
+                    var table = (XWPFTable)doc.BodyElements[section.NodeData.BodyIndex];
 
                     HandleTable(table, section);
                 }
                 else if (section.SectionType == NpDocSectionType.mif)
                 {
-                    HandleBodyIf(doc, section, ref bodyIndexIncrement);
+                    HandleBodyIf(doc, section);
                 }
             }
 
@@ -87,25 +87,23 @@ namespace OfficeLib.NpoiModule
 
         #region----Convert Methods----
 
-        private void HandleBodyIf(XWPFDocument doc, NpDocTemplateNode mifSection, ref int bodyIndexIncrement)
+        private void HandleBodyIf(XWPFDocument doc, NpDocTemplateNode mifSection)
         {
-            var value = GetPathValue(mifSection.NodeKey);
+            var (jtoken, format) = GetPathValue(mifSection.NodeKey);
 
-            var arr = JsonHelper.GetLoopArray(value);
+            var arr = JsonVarHelper.GetLoopArray(jtoken, format);
 
             var beginIndex = mifSection.NodeData.BodyIndex;
             var endIndex = mifSection.EndNode.NodeData.BodyIndex;
 
             if (arr == null)
             {
-                var removeIndex = beginIndex + bodyIndexIncrement;
+                var removeIndex = beginIndex;
 
                 for (var i = beginIndex; i <= endIndex; i++)
                 {
                     doc.RemoveBodyElement(removeIndex);
                 }
-
-                bodyIndexIncrement -= endIndex - beginIndex;
             }
             else
             {
@@ -121,28 +119,26 @@ namespace OfficeLib.NpoiModule
                     {
                         if (item.NodeData.Paragraph != null)
                         {
-                            var jval = GetPathValue(item.NodeKey);
-                            item.NodeData.Paragraph.ReplaceText(item.NodeText, jval?.ToString());
+                            (jtoken, format) = GetPathValue(item.NodeKey);
+                            item.NodeData.Paragraph.ReplaceText(item.NodeText, jtoken?.FormatValue(format));
                         }
                         else //处理表格
                         {
-                            var table = (XWPFTable)doc.BodyElements[item.NodeData.BodyIndex + bodyIndexIncrement];
+                            var table = (XWPFTable)doc.BodyElements[item.NodeData.BodyIndex];
 
                             HandleTable(table, item);
                         }
                     }
                 }
 
-                if (string.IsNullOrWhiteSpace(beginPara.Text))
-                {
-                    doc.RemoveBodyElement(mifSection.NodeData.BodyIndex + bodyIndexIncrement);
-                    bodyIndexIncrement--;
-                }
-
                 if (string.IsNullOrWhiteSpace(endPara.Text))
                 {
-                    doc.RemoveBodyElement(mifSection.EndNode.NodeData.BodyIndex + bodyIndexIncrement);
-                    bodyIndexIncrement--;
+                    doc.RemoveBodyElement(mifSection.EndNode.NodeData.BodyIndex);
+                }
+
+                if (string.IsNullOrWhiteSpace(beginPara.Text))
+                {
+                    doc.RemoveBodyElement(mifSection.NodeData.BodyIndex);
                 }
             }
         }
@@ -154,45 +150,35 @@ namespace OfficeLib.NpoiModule
                 return;
             }
 
-            var rowIncrement = 0;
-
-            NpDocTemplateNode loopSection = null;
+            Stack<NpDocTemplateNode> loopStack = null;
 
             foreach (var child in tableSection.Children)
             {
-                if (loopSection != null)
-                {
-                    if (loopSection.EndNode.NodeData.RowIndex != child.NodeData.RowIndex)
-                    {
-                        var jval = GetPathValue(loopSection.NodeKey);
-                        var loopValues = JsonHelper.GetLoopArray(jval);
-                        new NpDocTableHandler(table).HandleLoop(loopSection, loopValues, ref rowIncrement, GetPathValue);
-
-                        loopSection = null;
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.Assert(child.SectionType != NpDocSectionType.loop);
-                    }
-                }
-
                 if (child.SectionType == NpDocSectionType.loop)
                 {
-                    loopSection = child; //碰到循环后,先将循环结束标识后位于同一行的单元格处理掉
+                    if (loopStack == null)
+                    {
+                        loopStack = new Stack<NpDocTemplateNode>();
+                    }
+                    loopStack.Push(child);
                 }
                 else
                 {
-                    var jval = GetPathValue(child.NodeKey);
+                    var (jtoken, format) = GetPathValue(child.NodeKey);
 
-                    child.NodeData.Paragraph.ReplaceText(child.NodeText, jval?.ToString());
+                    child.NodeData.Paragraph.ReplaceText(child.NodeText, jtoken?.FormatValue(format));
                 }
             }
 
-            if (loopSection != null)
+            if (loopStack != null)
             {
-                var jval = GetPathValue(loopSection.NodeKey);
-                var loopValues = JsonHelper.GetLoopArray(jval);
-                new NpDocTableHandler(table).HandleLoop(loopSection, loopValues, ref rowIncrement, GetPathValue);
+                while (loopStack.Count > 0)
+                {
+                    var loopSection = loopStack.Pop();
+                    var (jtoken, format) = GetPathValue(loopSection.NodeKey);
+                    var loopValues = JsonVarHelper.GetLoopArray(jtoken, format);
+                    new NpDocTableHandler(table).HandleLoop(loopSection, loopValues, GetPathValue);
+                }
             }
         }
 
@@ -226,33 +212,51 @@ namespace OfficeLib.NpoiModule
         /// <summary>
         /// 根据变量路径获取值
         /// </summary>
-        private JsonValue GetPathValue(string pathKey, JsonValue loopValue = null)
+        private (JToken, string format) GetPathValue(string pathKey, JToken loopValue = null)
         {
             if (pathKey is null)
             {
-                return null;
+                return (null, null);
             }
 
             if (pathKey == ".")
             {
-                return loopValue;
+                return (loopValue, null);
             }
 
             var index = pathKey.IndexOf('.');
+            var findex = pathKey.LastIndexOf(':');
+
+            string varKey = pathKey, format = null;
+
+            if (findex > 0)
+            {
+                format = pathKey.Substring(findex + 1).Trim();
+                varKey = pathKey.Substring(0, findex).TrimEnd();
+                if (varKey == ".")
+                {
+                    return (loopValue, format);
+                }
+            }
+
+            JToken jret;
 
             if (index < 0)
             {
-                return loopValue is JsonObject jobj1 && jobj1.TryGetValue(pathKey, out var jn1) ? jn1 : _varDic.GetVarValue(pathKey);
+                jret = loopValue is JObject jobj && jobj.TryGetValue(varKey, out var jn1) ? jn1 : _varDic.GetVar(varKey);
             }
-
-            if (index == 0)
+            else if (index == 0)
             {
-                return JsonHelper.GetPropertyValue(loopValue, pathKey.AsSpan().Slice(1).TrimStart());
+                jret = JsonVarHelper.GetPropertyValue(loopValue, varKey.AsSpan().Slice(1).TrimStart());
+            }
+            else
+            {
+                var key1 = varKey[..index];
+                jret = loopValue is JObject jobj && jobj.TryGetValue(key1, out var jn2) ? jn2 : _varDic.GetVar(key1);
+                jret = JsonVarHelper.GetPropertyValue(jret, varKey.AsSpan()[(index + 1)..]);
             }
 
-            var key1 = pathKey[..index];
-            var jval = loopValue is JsonObject jobj2 && jobj2.TryGetValue(key1, out var jn2) ? jn2 : _varDic.GetVarValue(key1);
-            return JsonHelper.GetPropertyValue(jval, pathKey.AsSpan()[(index + 1)..]);
+            return (jret, format);
         }
 
         #endregion
@@ -278,7 +282,7 @@ namespace OfficeLib.NpoiModule
 
             if (curSection != rootSection)
             {
-                throw new NpDocException("区块未关闭:" + curSection.NodeText);
+                throw new TemplateConvertException("区块未关闭:" + curSection.NodeText);
             }
         }
 
@@ -334,9 +338,9 @@ namespace OfficeLib.NpoiModule
                 {
                     //直接做了替换
 
-                    var jval = GetPathValue(nodeKey);
+                    var (jtoken, format) = GetPathValue(nodeKey);
 
-                    data.Paragraph.ReplaceText(m.Value, jval?.ToString());
+                    data.Paragraph.ReplaceText(m.Value, jtoken?.FormatValue(format));
                 }
             }
         }
@@ -377,7 +381,7 @@ namespace OfficeLib.NpoiModule
             //检查是否区块被关闭了
             if (curSection != tableSection)
             {
-                throw new NpDocException("表格中的区块未关闭:" + curSection.NodeText);
+                throw new TemplateConvertException("表格中的区块未关闭:" + curSection.NodeText);
             }
         }
 
@@ -398,46 +402,57 @@ namespace OfficeLib.NpoiModule
             /// <summary>
             /// 处理表格内的循环区块
             /// </summary>
-            public void HandleLoop(NpDocTemplateNode loopSection, JsonArray loopValues, ref int rowIncrement, Func<string, JsonValue, JsonValue> GetPathValue)
+            public void HandleLoop(NpDocTemplateNode loopSection, JArray loopValues, Func<string, JToken, (JToken, string)> GetPathValue)
             {
                 if (loopValues == null)
                 {
-                    RemoveLoopSectionFull(loopSection, ref rowIncrement);
+                    RemoveLoopSectionFull(loopSection);
                 }
                 else
                 {
-                    RemoveLoopSectionBegin(loopSection, rowIncrement);
-                    RemoveLoopSectionEnd(loopSection, rowIncrement);
+                    RemoveLoopSectionBegin(loopSection);
+                    RemoveLoopSectionEnd(loopSection);
 
-                    var rowIncrement2 = rowIncrement;
-                    var beginRowIndex = loopSection.NodeData.RowIndex + rowIncrement;
-                    var endRowIndex = loopSection.EndNode.NodeData.RowIndex + rowIncrement;
+                    var beginRowIndex = loopSection.NodeData.RowIndex;
+                    var endRowIndex = loopSection.EndNode.NodeData.RowIndex;
+                    var rowCount = endRowIndex - beginRowIndex + 1;
 
-                    for (var i = 1; i < loopValues.Count; i++)
+                    if (loopValues.Count > 1)
                     {
-                        for (var rIndex = endRowIndex; rIndex >= beginRowIndex; rIndex--)
+                        var copyRows = new CT_Row[rowCount * (loopValues.Count - 1)];
+                        var copyRowIndex = 0;
+
+                        for (var i = 1; i < loopValues.Count; i++)
                         {
-                            var row = _table.Rows[rIndex];
-                            var copiedRow = new XWPFTableRow(row.GetCTRow().Copy(), _table);
-                            _table.AddRow(copiedRow, endRowIndex + 1);
-                            rowIncrement++;
+                            for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
+                            {
+                                var row = _table.Rows[rIndex];
+                                copyRows[copyRowIndex++] = row.GetCTRow().Copy();
+                            }
+                        }
+
+                        for (var rIndex = copyRows.Length - 1; rIndex >= 0; rIndex--)
+                        {
+                            var copyRow = new XWPFTableRow(copyRows[rIndex], _table);
+
+                            _table.AddRow(copyRow, endRowIndex + 1);
                         }
                     }
 
-                    var rowCount = endRowIndex - beginRowIndex + 1;
+                    var rowIncrement = 0;
 
                     foreach (var loopValue in loopValues)
                     {
                         foreach (var child in loopSection.Children)
                         {
-                            var row = _table.Rows[child.NodeData.RowIndex + rowIncrement2];
+                            var row = _table.Rows[child.NodeData.RowIndex + rowIncrement];
                             var cell = row.GetCell(child.NodeData.CellIndex);
                             var para = cell.Paragraphs[child.NodeData.BodyIndex];
-                            var jstr = GetPathValue(child.NodeKey, loopValue)?.ToString();
-                            para.ReplaceText(child.NodeText, jstr ?? string.Empty);
+                            var (jtoken, format) = GetPathValue(child.NodeKey, loopValue);
+                            para.ReplaceText(child.NodeText, jtoken.FormatValue(format) ?? string.Empty);
                         }
 
-                        rowIncrement2 += rowCount;
+                        rowIncrement += rowCount;
                     }
                 }
             }
@@ -445,7 +460,7 @@ namespace OfficeLib.NpoiModule
             /// <summary>
             /// 移除循环开始标识
             /// </summary>
-            private void RemoveLoopSectionBegin(NpDocTemplateNode loopSection, int rowIncrement)
+            private void RemoveLoopSectionBegin(NpDocTemplateNode loopSection)
             {
                 var beginData = loopSection.NodeData;
 
@@ -456,7 +471,7 @@ namespace OfficeLib.NpoiModule
                     return;
                 }
 
-                var beginRow = _table.GetRow(beginData.RowIndex + rowIncrement);
+                var beginRow = _table.GetRow(beginData.RowIndex);
                 var beginCell = beginRow.GetCell(beginData.CellIndex);
 
                 beginCell.RemoveParagraph(beginData.BodyIndex);
@@ -491,7 +506,7 @@ namespace OfficeLib.NpoiModule
             /// <summary>
             /// 移除循环结束标识
             /// </summary>
-            private void RemoveLoopSectionEnd(NpDocTemplateNode loopSection, int rowIncrement)
+            private void RemoveLoopSectionEnd(NpDocTemplateNode loopSection)
             {
                 var endData = loopSection.EndNode.NodeData;
 
@@ -499,7 +514,7 @@ namespace OfficeLib.NpoiModule
 
                 if (string.IsNullOrWhiteSpace(endData.Paragraph.Text))
                 {
-                    var endRow = _table.GetRow(endData.RowIndex + rowIncrement);
+                    var endRow = _table.GetRow(endData.RowIndex);
                     var endCell = endRow.GetCell(endData.CellIndex);
 
                     endCell.RemoveParagraph(endData.BodyIndex);
@@ -516,13 +531,13 @@ namespace OfficeLib.NpoiModule
             /// <summary>
             /// 移除表格内的循环区块,如果循环首尾行有外部数据存在则保留外部数据
             /// </summary>
-            private void RemoveLoopSectionFull(NpDocTemplateNode loopSection, ref int rowIncrement)
+            private void RemoveLoopSectionFull(NpDocTemplateNode loopSection)
             {
                 var beginData = loopSection.NodeData;
                 var endData = loopSection.EndNode.NodeData;
 
-                var beginRowIndex = beginData.RowIndex + rowIncrement;
-                var endRowIndex = endData.RowIndex + rowIncrement;
+                var beginRowIndex = beginData.RowIndex;
+                var endRowIndex = endData.RowIndex;
 
                 //清理区块起始标识所在的单元格
                 var beginRow = _table.GetRow(beginRowIndex);
@@ -572,8 +587,6 @@ namespace OfficeLib.NpoiModule
                 for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
                 {
                     _table.RemoveRow(beginRowIndex);
-
-                    rowIncrement--;
                 }
             }
 

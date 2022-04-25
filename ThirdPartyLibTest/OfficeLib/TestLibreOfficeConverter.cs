@@ -1,4 +1,4 @@
-﻿using OfficeLib.Converts;
+﻿using OfficeLib.Converters.Format;
 
 namespace ThirdPartyLibTest.OfficeLib
 {
@@ -11,7 +11,7 @@ namespace ThirdPartyLibTest.OfficeLib
             var t1 = Task.Run(() =>
             {
                 var templatePath = Path.Combine(AppContext.BaseDirectory, "Resources\\OfficeLib\\test11.docx");
-                DocxToPdfConverter.ConvertByLibreOffice(@"D:\Program Files\LibreOffice\program\soffice.exe", templatePath, "d:\\");
+                LibreOfficeConverter.Convert(@"D:\Program Files\LibreOffice\program\soffice.exe", templatePath, "d:\\T111.pdf");
             });
 
             //var t2 = Task.Run(() =>

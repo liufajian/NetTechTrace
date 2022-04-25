@@ -1,19 +1,19 @@
-﻿using OfficeLib.JsonNodes;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 
-namespace OfficeLib
+namespace OfficeLib.Converters
 {
     /// <summary>
     /// 变量字典
     /// </summary>
-    public class VarDictionary
+    public class JsonVarDic
     {
-        readonly Dictionary<string, JsonValue> _dic;
+        readonly Dictionary<string, JToken> _dic;
 
-        public VarDictionary()
+        public JsonVarDic()
         {
-            _dic = new Dictionary<string, JsonValue>(StringComparer.OrdinalIgnoreCase);
+            _dic = new Dictionary<string, JToken>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -22,9 +22,9 @@ namespace OfficeLib
         public int Count => _dic.Count;
 
         /// <summary>
-        /// 添加替换变量
+        /// 添加变量
         /// </summary>
-        public void AddVariable(string varKey, JsonValue value)
+        public void SetVar(string varKey, JToken value)
         {
             if (varKey is null)
             {
@@ -35,9 +35,9 @@ namespace OfficeLib
         }
 
         /// <summary>
-        /// 
+        /// 获取变量值
         /// </summary>
-        public JsonValue GetVarValue(string varKey)
+        public JToken GetVar(string varKey)
         {
             return varKey is null ? null : _dic.TryGetValue(varKey, out var node) ? node : null;
         }
