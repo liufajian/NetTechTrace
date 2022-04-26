@@ -177,7 +177,7 @@ namespace OfficeLib.Converters.Format
 
                 commandArgs.AddRange(new[] { inputFile, "--norestore", "--writer", "--headless", "--outdir", tmpFolder });
 
-                var procStartInfo = new ProcessStartInfo(libreOfficePath)
+                var procStartInfo = new ProcessStartInfo(_libreOfficePath)
                 {
                     RedirectStandardOutput = true,
                     UseShellExecute = false,

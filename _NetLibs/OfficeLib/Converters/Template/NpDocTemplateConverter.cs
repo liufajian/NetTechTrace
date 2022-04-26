@@ -224,15 +224,15 @@ namespace OfficeLib.Converters.Template
                 return (loopValue, null);
             }
 
-            var index = pathKey.IndexOf('.');
-            var findex = pathKey.LastIndexOf(':');
+            var dotIndex = pathKey.IndexOf('.');
+            var colonIndex = pathKey.LastIndexOf(':');
 
             string varKey = pathKey, format = null;
 
-            if (findex > 0)
+            if (colonIndex > 0)
             {
-                format = pathKey.Substring(findex + 1).Trim();
-                varKey = pathKey.Substring(0, findex).TrimEnd();
+                format = pathKey.Substring(colonIndex + 1).Trim();
+                varKey = pathKey.Substring(0, colonIndex).TrimEnd();
                 if (varKey == ".")
                 {
                     return (loopValue, format);
@@ -241,19 +241,36 @@ namespace OfficeLib.Converters.Template
 
             JToken jret;
 
-            if (index < 0)
+            if (dotIndex < 0)
             {
                 jret = loopValue is JObject jobj && jobj.TryGetValue(varKey, out var jn1) ? jn1 : _varDic.GetVar(varKey);
             }
-            else if (index == 0)
+            else if (dotIndex == 0)
             {
-                jret = JsonVarHelper.GetPropertyValue(loopValue, varKey.AsSpan().Slice(1).TrimStart());
+                if (loopValue != null)
+                {
+                    jret = JsonVarHelper.GetPropertyValue(loopValue, varKey.AsSpan().Slice(1).TrimStart());
+                }
+                else
+                {
+                    var dotIndex2 = varKey.IndexOf('.', 1);
+
+                    if (dotIndex2 > 0)
+                    {
+                        jret = _varDic.GetVar(varKey.Substring(1, dotIndex2 - 1));
+                        jret = JsonVarHelper.GetPropertyValue(jret, varKey.AsSpan()[(dotIndex2 + 1)..]);
+                    }
+                    else
+                    {
+                        jret = _varDic.GetVar(varKey.Substring(1));
+                    }
+                }
             }
             else
             {
-                var key1 = varKey[..index];
+                var key1 = varKey[..dotIndex];
                 jret = loopValue is JObject jobj && jobj.TryGetValue(key1, out var jn2) ? jn2 : _varDic.GetVar(key1);
-                jret = JsonVarHelper.GetPropertyValue(jret, varKey.AsSpan()[(index + 1)..]);
+                jret = JsonVarHelper.GetPropertyValue(jret, varKey.AsSpan()[(dotIndex + 1)..]);
             }
 
             return (jret, format);
@@ -334,10 +351,8 @@ namespace OfficeLib.Converters.Template
                 {
                     curSection.AppendChildNode(nodeKey, nodeText: m.Value, data: data);
                 }
-                else
+                else //直接做替换
                 {
-                    //直接做了替换
-
                     var (jtoken, format) = GetPathValue(nodeKey);
 
                     data.Paragraph.ReplaceText(m.Value, jtoken?.FormatValue(format));
@@ -410,11 +425,8 @@ namespace OfficeLib.Converters.Template
                 }
                 else
                 {
-                    RemoveLoopSectionBegin(loopSection);
-                    RemoveLoopSectionEnd(loopSection);
+                    RemoveLoopSectionBeginEnd(loopSection, out var beginRowIndex, out var endRowIndex);
 
-                    var beginRowIndex = loopSection.NodeData.RowIndex;
-                    var endRowIndex = loopSection.EndNode.NodeData.RowIndex;
                     var rowCount = endRowIndex - beginRowIndex + 1;
 
                     if (loopValues.Count > 1)
@@ -427,15 +439,25 @@ namespace OfficeLib.Converters.Template
                             for (var rIndex = beginRowIndex; rIndex <= endRowIndex; rIndex++)
                             {
                                 var row = _table.Rows[rIndex];
+
                                 copyRows[copyRowIndex++] = row.GetCTRow().Copy();
                             }
                         }
 
-                        for (var rIndex = copyRows.Length - 1; rIndex >= 0; rIndex--)
+                        var insertRowIndex = endRowIndex + 1 < _table.NumberOfRows ? endRowIndex + 1 : -1;
+
+                        for (var rIndex = 0; rIndex < copyRows.Length; rIndex++)
                         {
                             var copyRow = new XWPFTableRow(copyRows[rIndex], _table);
 
-                            _table.AddRow(copyRow, endRowIndex + 1);
+                            if (insertRowIndex > 0)
+                            {
+                                _table.AddRow(copyRow, insertRowIndex++);
+                            }
+                            else
+                            {
+                                _table.AddRow(copyRow);
+                            }
                         }
                     }
 
@@ -446,7 +468,7 @@ namespace OfficeLib.Converters.Template
                         foreach (var child in loopSection.Children)
                         {
                             var row = _table.Rows[child.NodeData.RowIndex + rowIncrement];
-                            var cell = row.GetCell(child.NodeData.CellIndex);
+                            var cell = row.GetCell(child.NodeData.ColIndex);
                             var para = cell.Paragraphs[child.NodeData.BodyIndex];
                             var (jtoken, format) = GetPathValue(child.NodeKey, loopValue);
                             para.ReplaceText(child.NodeText, jtoken.FormatValue(format) ?? string.Empty);
@@ -458,11 +480,40 @@ namespace OfficeLib.Converters.Template
             }
 
             /// <summary>
-            /// 移除循环开始标识
+            /// 移除循环开始结束标识
             /// </summary>
-            private void RemoveLoopSectionBegin(NpDocTemplateNode loopSection)
+            private void RemoveLoopSectionBeginEnd(NpDocTemplateNode loopSection, out int beginRowIndex, out int endRowIndex)
             {
                 var beginData = loopSection.NodeData;
+                var endData = loopSection.EndNode.NodeData;
+
+                endRowIndex = endData.RowIndex;
+                beginRowIndex = beginData.RowIndex;
+
+                //移除循环结束标识
+
+                endData.Paragraph.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
+
+                if (string.IsNullOrWhiteSpace(endData.Paragraph.Text))
+                {
+                    var endRow = _table.GetRow(endRowIndex);
+                    var endCell = endRow.GetCell(endData.ColIndex);
+
+                    endCell.RemoveParagraph(endData.BodyIndex);
+
+                    if (endCell.Paragraphs.Count < 1)
+                    {
+                        endCell.SetText(string.Empty);
+                    }
+
+                    if (endRowIndex != beginRowIndex && endRow.GetTableCells().All(n => string.IsNullOrWhiteSpace(n.GetText())))
+                    {
+                        endRow.GetTable().RemoveRow(endRowIndex);
+                        endRowIndex--;
+                    }
+                }
+
+                //移除循环开始标识
 
                 beginData.Paragraph.ReplaceText(loopSection.NodeText, string.Empty);
 
@@ -471,8 +522,8 @@ namespace OfficeLib.Converters.Template
                     return;
                 }
 
-                var beginRow = _table.GetRow(beginData.RowIndex);
-                var beginCell = beginRow.GetCell(beginData.CellIndex);
+                var beginRow = _table.GetRow(beginRowIndex);
+                var beginCell = beginRow.GetCell(beginData.ColIndex);
 
                 beginCell.RemoveParagraph(beginData.BodyIndex);
 
@@ -501,30 +552,17 @@ namespace OfficeLib.Converters.Template
                 {
                     beginCell.SetText(string.Empty);
                 }
-            }
 
-            /// <summary>
-            /// 移除循环结束标识
-            /// </summary>
-            private void RemoveLoopSectionEnd(NpDocTemplateNode loopSection)
-            {
-                var endData = loopSection.EndNode.NodeData;
-
-                endData.Paragraph.ReplaceText(loopSection.EndNode.NodeText, string.Empty);
-
-                if (string.IsNullOrWhiteSpace(endData.Paragraph.Text))
+                if (beginRow.GetTableCells().All(n => string.IsNullOrWhiteSpace(n.GetText())))
                 {
-                    var endRow = _table.GetRow(endData.RowIndex);
-                    var endCell = endRow.GetCell(endData.CellIndex);
+                    endRowIndex--;
 
-                    endCell.RemoveParagraph(endData.BodyIndex);
+                    beginRow.GetTable().RemoveRow(beginRowIndex);
 
-                    if (endCell.Paragraphs.Count < 1)
+                    foreach (var child in loopSection.Children)
                     {
-                        endCell.SetText(string.Empty);
+                        child.NodeData.RowIndex -= 1;
                     }
-
-                    //结束节点后面已经被预先处理了
                 }
             }
 
@@ -541,7 +579,7 @@ namespace OfficeLib.Converters.Template
 
                 //清理区块起始标识所在的单元格
                 var beginRow = _table.GetRow(beginRowIndex);
-                var beginCell = beginRow.GetCell(beginData.CellIndex);
+                var beginCell = beginRow.GetCell(beginData.ColIndex);
                 while (beginCell.Paragraphs.Count > beginData.BodyIndex)
                 {
                     beginCell.RemoveParagraph(beginData.BodyIndex);
@@ -552,7 +590,7 @@ namespace OfficeLib.Converters.Template
                 var endRow = _table.GetRow(endRowIndex);
                 if (beginData.TableCellPos != endData.TableCellPos)
                 {
-                    var endCell = endRow.GetCell(endData.CellIndex);
+                    var endCell = endRow.GetCell(endData.ColIndex);
                     for (var i = 0; i <= endData.BodyIndex; i++)
                     {
                         endCell.RemoveParagraph(0);
@@ -562,23 +600,23 @@ namespace OfficeLib.Converters.Template
 
                 //删除首行判断
                 var cells = beginRow.GetTableCells();
-                if (!IsRangeEmpty(cells, 0, beginData.CellIndex))
+                if (!IsRangeEmpty(cells, 0, beginData.ColIndex))
                 {
                     //如果首行不为空则设置循环开始标识后的单元格为空值
-                    var endCellIndex = beginRowIndex == endRowIndex ? endData.CellIndex : cells.Count;
-                    ClearRange(cells, beginData.CellIndex + 1, endCellIndex - 1);
+                    var endCellIndex = beginRowIndex == endRowIndex ? endData.ColIndex : cells.Count;
+                    ClearRange(cells, beginData.ColIndex + 1, endCellIndex - 1);
                     beginRowIndex += 1;
                 }
 
                 //删除尾行判断
                 cells = endRow.GetTableCells();
-                if (!IsRangeEmpty(cells, endData.CellIndex, cells.Count - 1))
+                if (!IsRangeEmpty(cells, endData.ColIndex, cells.Count - 1))
                 {
                     //如果尾行不为空则设置循环结束标识前的单元格为空值
                     if (beginRowIndex <= endRowIndex)
                     {
-                        var beginCellIndex = beginRowIndex == endRowIndex ? beginData.CellIndex : 0;
-                        ClearRange(cells, beginCellIndex + 1, endData.CellIndex - 1);
+                        var beginCellIndex = beginRowIndex == endRowIndex ? beginData.ColIndex : 0;
+                        ClearRange(cells, beginCellIndex + 1, endData.ColIndex - 1);
                     }
                     endRowIndex -= 1;
                 }

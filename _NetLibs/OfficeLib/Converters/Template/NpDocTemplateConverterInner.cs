@@ -23,13 +23,23 @@ namespace OfficeLib.Converters.Template
             /// </summary>
             public int[] TableCellPos { get; set; }
 
-            public int RowIndex => TableCellPos[0];
+            /// <summary>
+            /// 表格所在行索引
+            /// </summary>
+            public int RowIndex
+            {
+                get => TableCellPos[0];
+                set => TableCellPos[0] = value;
+            }
 
-            public int CellIndex => TableCellPos[1];
+            /// <summary>
+            /// 表格所在列索引
+            /// </summary>
+            public int ColIndex => TableCellPos[1];
 
             public override string ToString()
             {
-                return TableCellPos != null ? $"row:{RowIndex},cell:{CellIndex}" : $"body index:{BodyIndex}";
+                return TableCellPos != null ? $"row:{RowIndex},cell:{ColIndex}" : $"body index:{BodyIndex}";
             }
         }
 
@@ -38,7 +48,7 @@ namespace OfficeLib.Converters.Template
         /// </summary>
         enum NpDocSectionType
         {
-            none, root, table, mif, loop
+            none, table, mif, loop
         }
 
         /// <summary>
@@ -257,7 +267,7 @@ namespace OfficeLib.Converters.Template
             /// </summary>
             public static NpDocTemplateNode CreateRootSection()
             {
-                return new NpDocTemplateNode(NpDocSectionType.root);
+                return new NpDocTemplateNode(NpDocSectionType.none);
             }
 
             public override string ToString()

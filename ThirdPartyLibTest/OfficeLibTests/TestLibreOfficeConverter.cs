@@ -30,7 +30,7 @@ namespace ThirdPartyLibTest.OfficeLib
                 taskList[index] = Task.Run(() =>
                 {
                     var fileName = Path.GetFileNameWithoutExtension(docList[index]);
-                    LibreOfficeConverter.Convert(libreOfficeExePath, docList[index], "d:\\temp\\Test" + index + ".pdf");
+                    LibreOfficeConverter.Convert(docList[index], "d:\\temp\\Test" + index + ".pdf");
                 });
             }
 
