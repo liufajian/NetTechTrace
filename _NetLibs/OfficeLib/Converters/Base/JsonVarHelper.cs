@@ -71,11 +71,17 @@ namespace OfficeLib.Converters
             }
             else if (jtoken is JObject jobj)
             {
-                if(jobj.Count < 1)
+                if (jobj.Count < 1)
                 {
-
+                    return null;
                 }
-                return jobj.Count < 1 ? null : new JArray() { jobj };
+
+                if (string.IsNullOrEmpty(format))
+                {
+                    return new JArray() { jobj };
+                }
+
+                jtoken = FormatValue(jobj, format);
             }
             else if (jtoken is JValue jval)
             {

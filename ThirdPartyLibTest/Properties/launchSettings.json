@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ThirdPartyLibTest": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "LibreOffice_UserInstallation": "d:\\temp"
+      }
+    }
+  }
+}
