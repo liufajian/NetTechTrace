@@ -49,9 +49,6 @@
 	  <None Update="Resources\NPOI\TestRowCopy.docx">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
-	  <None Update="Resources\OfficeLib\Test2.docx">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
 	  <None Update="Resources\OfficeLib\Test1.docx">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>

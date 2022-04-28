@@ -150,15 +150,16 @@ namespace OfficeLib.Converters.Format
 
                 string convertedFile;
 
-                if ((inputFile.EndsWith(".html") || inputFile.EndsWith(".htm")) && outputFile.EndsWith(".pdf"))
+                if (outputFile.EndsWith(".pdf"))
                 {
                     commandArgs.Add("pdf:writer_pdf_Export");
                     convertedFile = Path.Combine(tmpFolder, Path.GetFileNameWithoutExtension(inputFile) + ".pdf");
-                }
-                else if (inputFile.EndsWith(".docx") && outputFile.EndsWith(".pdf"))
-                {
-                    commandArgs.Add("pdf:writer_pdf_Export");
-                    convertedFile = Path.Combine(tmpFolder, Path.GetFileNameWithoutExtension(inputFile) + ".pdf");
+
+                    if (!(inputFile.EndsWith(".html") || inputFile.EndsWith(".htm")
+                        || inputFile.EndsWith(".docx") || inputFile.EndsWith(".xlsx")))
+                    {
+                        throw new FormatConvertException("文件格式转换不支持:" + inputFile);
+                    }
                 }
                 else if (inputFile.EndsWith(".docx") && (outputFile.EndsWith(".html") || outputFile.EndsWith(".htm")))
                 {
@@ -193,7 +194,16 @@ namespace OfficeLib.Converters.Format
                 var process = new Process() { StartInfo = procStartInfo };
 
                 process.Start();
-                process.WaitForExit(60000);
+
+                if (!process.WaitForExit(180000))
+                {
+                    try
+                    {
+                        process.Kill();
+                        process.WaitForExit(30000);
+                    }
+                    catch { }
+                }
 
                 // Check for failed exit code.
                 if (process.ExitCode != 0)

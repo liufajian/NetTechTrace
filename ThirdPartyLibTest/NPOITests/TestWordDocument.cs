@@ -1,6 +1,6 @@
 ﻿using NPOI.XWPF.UserModel;
 
-namespace ThirdPartyLibTest.NPOI
+namespace ThirdPartyLibTest.NPOITests
 {
     [TestClass]
     public class TestWordDocument
