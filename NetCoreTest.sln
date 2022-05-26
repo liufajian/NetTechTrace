@@ -13,6 +13,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NetLibs", "NetLibs", "{FD11
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OfficeLib", "_NetLibs\OfficeLib\OfficeLib.csproj", "{C432D9F1-6C8A-45B1-9F0B-CCF45DD5EFEC}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleAppTest", "ConsoleAppTest\ConsoleAppTest.csproj", "{61E06A60-693B-4442-A9A2-D4BA1CF8E691}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetLib", "NetLib\NetLib.csproj", "{429F6A91-A2F0-4425-9BDC-7FAD907AA0A1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -35,12 +39,21 @@ Global
 		{C432D9F1-6C8A-45B1-9F0B-CCF45DD5EFEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C432D9F1-6C8A-45B1-9F0B-CCF45DD5EFEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C432D9F1-6C8A-45B1-9F0B-CCF45DD5EFEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61E06A60-693B-4442-A9A2-D4BA1CF8E691}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61E06A60-693B-4442-A9A2-D4BA1CF8E691}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61E06A60-693B-4442-A9A2-D4BA1CF8E691}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61E06A60-693B-4442-A9A2-D4BA1CF8E691}.Release|Any CPU.Build.0 = Release|Any CPU
+		{429F6A91-A2F0-4425-9BDC-7FAD907AA0A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{429F6A91-A2F0-4425-9BDC-7FAD907AA0A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{429F6A91-A2F0-4425-9BDC-7FAD907AA0A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{429F6A91-A2F0-4425-9BDC-7FAD907AA0A1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C432D9F1-6C8A-45B1-9F0B-CCF45DD5EFEC} = {FD11A4F1-8383-425A-B445-454B69F0E40C}
+		{429F6A91-A2F0-4425-9BDC-7FAD907AA0A1} = {FD11A4F1-8383-425A-B445-454B69F0E40C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0171C0A2-8DF3-459B-8CCA-75CA5B299EB8}

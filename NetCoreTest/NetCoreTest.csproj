@@ -27,6 +27,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\NetLib\NetLib.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <None Update="Resources\System.Text\Utf8BomEncoding.json">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
