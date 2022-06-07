@@ -27,6 +27,11 @@ namespace NetCoreTest.System.Collections
             Assert.AreEqual(nv[key1], "333");
             nv.Set(key1, "444");
             Assert.AreEqual(nv[key1], "444");
+
+            nv[key1] = "333";
+            Assert.AreEqual(nv[key1], "333");
+            nv[key1] = "444";
+            Assert.AreEqual(nv[key1], "444");
         }
     }
 }
