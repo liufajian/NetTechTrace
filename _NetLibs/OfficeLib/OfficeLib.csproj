@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Converters\NpoiDoc\**" />
+	  <Compile Remove="JsonNodes\**" />
+	  <EmbeddedResource Remove="Converters\NpoiDoc\**" />
+	  <EmbeddedResource Remove="JsonNodes\**" />
+	  <None Remove="Converters\NpoiDoc\**" />
+	  <None Remove="JsonNodes\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Converters\Base\VariableDic.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+		<PackageReference Include="NPOI" Version="2.5.5" />
+		<PackageReference Include="System.Text.Json" Version="6.0.2" />
+	</ItemGroup>
+
+</Project>

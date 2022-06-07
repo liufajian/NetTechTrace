@@ -19,7 +19,7 @@ namespace NetCoreTest.System
             Assert.IsTrue(sv1.Contains("222"));
             Assert.IsTrue(!string.IsNullOrWhiteSpace(sv1));
 
-            string? str = null;
+            string str = null;
             var sv2 = new StringValues(str);
             Assert.AreEqual(sv2.ToString(), string.Empty);
             Assert.IsFalse(sv2.Contains("111"));

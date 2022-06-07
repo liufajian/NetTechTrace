@@ -33,5 +33,80 @@ namespace NetCoreTest.System.Collections
             nv[key1] = "444";
             Assert.AreEqual(nv[key1], "444");
         }
+
+        [TestMethod]
+        public void TestEnumerator()
+        {
+            var list = new List<int> { 11, 22, 33 };
+            var enm = list.GetEnumerator();
+            
+            Assert.AreEqual(enm.Current, 0);
+            
+            Assert.IsTrue(enm.MoveNext());
+            Assert.AreEqual(enm.Current, 11);
+            
+            Assert.IsTrue(enm.MoveNext());
+            Assert.AreEqual(enm.Current, 22);
+            
+            Assert.IsTrue(enm.MoveNext());
+            Assert.AreEqual(enm.Current, 33);
+
+            Assert.IsFalse(enm.MoveNext());
+            Assert.IsFalse(enm.MoveNext());
+
+            //----------------------------------
+
+            var list2 = new List<string> { "a1", "a2", "a3" };
+            var enm2 = list2.GetEnumerator();
+
+            Assert.AreEqual(enm2.Current, default(string));
+
+            Assert.IsTrue(enm2.MoveNext());
+            Assert.AreEqual(enm2.Current, "a1");
+
+            Assert.IsTrue(enm2.MoveNext());
+            Assert.AreEqual(enm2.Current, "a2");
+
+            Assert.IsTrue(enm2.MoveNext());
+            Assert.AreEqual(enm2.Current, "a3");
+
+            Assert.IsFalse(enm2.MoveNext());
+            Assert.IsFalse(enm2.MoveNext());
+        }
+
+        [TestMethod]
+        public void TestStack()
+        {
+            var stack = new Stack<int>();
+
+            for(var i = 1; i <= 3; i++)
+            {
+                stack.Push(i);
+            }
+
+            var pop = stack.Pop();
+            Assert.AreEqual(pop, 3);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 2);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 1);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 1);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 2);
+            stack.Push(pop);
+
+            pop = stack.Pop();
+            Assert.AreEqual(pop, 3);
+            stack.Push(pop);
+        }
     }
 }

@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace NetCoreTest
 {
@@ -8,6 +7,7 @@ namespace NetCoreTest
         [TestMethod]
         public void TestMethod1()
         {
+            
         }
     }
 }
