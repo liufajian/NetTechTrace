@@ -7,8 +7,11 @@
         public void TestIncrement()
         {
             var aa = new int[10];
+            var bb = aa[0];
             aa[0]++;
+            bb++;
             Assert.AreEqual(aa[0], 1);
+            Assert.AreEqual(bb, 1);
 
             aa[1] = 11;
             aa[2] = 20;
