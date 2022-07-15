@@ -150,10 +150,12 @@
   <ItemGroup>
     <ClInclude Include="CharStringConvert.h" />
     <ClInclude Include="CheckCheck.h" />
+    <ClInclude Include="LogUtils.h" />
     <ClInclude Include="PtrTest.h" />
     <ClInclude Include="StringConcat.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="LogUtils.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
