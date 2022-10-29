@@ -1,0 +1,23 @@
+﻿[DB1 连接字符串] #必须填写
+server=106.15.225.247;uid=roottest;pooling=true;port=20306;pwd=YieldChain!@#$2020;database=dev_ylcms;charset=utf8;Allow User Variables=True;SslMode=none;Connection Timeout=30;
+
+[DB1 查询语句] #必须填写
+select * from eod_trade_position where valuedate='2022-06-23'
+
+[DB1 数据标识字段] #必须填写,多个字段用逗号隔开
+TradeId,HedgeUniqueCode
+
+[DB2 连接字符串] #如果不填写则与"DB1 连接字符串"相同
+
+
+[DB2 查询语句] #如果不填写则与"DB1 查询语句"相同
+select * from eod_trade_position where valuedate='2022-06-22'
+
+[DB2 数据标识字段] #如果不填写则与"DB1 数据标识字段"相同
+
+
+[比较选项 忽略比较的字段]  #非必填,多个字段用逗号隔开
+id,optid,opttime,optdate,optdate,optname
+
+[比较选项 小数精度] #非必填,默认5
+
