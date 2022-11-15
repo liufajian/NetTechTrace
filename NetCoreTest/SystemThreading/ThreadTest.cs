@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading.Tasks;
 
-namespace System.Threading
+namespace SystemThreading
 {
     [TestClass]
     public class ThreadTest
@@ -60,6 +60,23 @@ namespace System.Threading
             innerWaitTasks(taskList.ToArray());
 
             Console.WriteLine("end!");
+        }
+
+        [TestMethod]
+        public void TestInterLocked()
+        {
+            int ti = 10;
+
+            var tr = Interlocked.Increment(ref ti);
+            Assert.AreEqual(ti, 11);
+            Assert.AreEqual(tr, 11);
+
+            tr = Interlocked.CompareExchange(ref ti, 5, 11);
+            Assert.AreEqual(ti, 5);
+            Assert.AreEqual(tr, 11);
+
+            Assert.AreEqual(10 >> 1, 5);
+            Assert.AreEqual(10 << 1, 20);
         }
     }
 }
